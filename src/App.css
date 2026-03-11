@@ -1,0 +1,342 @@
+/* ── Layout ─────────────────────────────── */
+.hq {
+  min-height: 100vh;
+  padding: 24px 32px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* ── Header / Big Status ────────────────── */
+.hq-header {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  margin-bottom: 40px;
+  animation: slide-up 0.4s ease-out;
+}
+
+.status-beacon {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-beacon .core {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  position: relative;
+  z-index: 2;
+}
+
+.status-beacon .ring {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid;
+  opacity: 0.3;
+  z-index: 1;
+}
+
+.status-beacon .ring-outer {
+  inset: -18px;
+  opacity: 0.15;
+}
+
+.status-beacon.working .core { background: var(--green); }
+.status-beacon.working .ring { border-color: var(--green); animation: beacon 2s ease-in-out infinite; }
+.status-beacon.working .ring-outer { border-color: var(--green); }
+
+.status-beacon.idle .core { background: var(--text-dim); }
+.status-beacon.idle .ring { border-color: var(--text-dim); }
+
+.status-beacon.blocked .core { background: var(--red); }
+.status-beacon.blocked .ring { border-color: var(--red); animation: beacon 1s ease-in-out infinite; }
+
+.status-beacon.reviewing .core { background: var(--purple); }
+.status-beacon.reviewing .ring { border-color: var(--purple); }
+
+.status-beacon.brainstorming .core { background: var(--yellow); }
+.status-beacon.brainstorming .ring { border-color: var(--yellow); animation: beacon 2.5s ease-in-out infinite; }
+
+.hq-title {
+  flex: 1;
+}
+
+.hq-title .state-label {
+  font-size: 3.2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.hq-title .task-label {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  font-weight: 300;
+}
+
+.hq-meta {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.hq-meta .clock {
+  font-size: 2.4rem;
+  font-weight: 300;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+.hq-meta .branding {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-top: 4px;
+}
+
+/* ── Section Labels ─────────────────────── */
+.section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* ── Agent Grid ─────────────────────────── */
+.agents-section {
+  margin-bottom: 40px;
+  animation: slide-up 0.5s ease-out 0.1s both;
+}
+
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 1200px) {
+  .agent-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 800px) {
+  .agent-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.agent-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 16px 18px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.agent-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-accent);
+}
+
+/* Glow stripe on left edge */
+.agent-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 10px 0 0 10px;
+}
+
+.agent-card.working::before { background: var(--green); box-shadow: 0 0 8px var(--green-glow); }
+.agent-card.idle::before { background: var(--text-dim); }
+.agent-card.blocked::before { background: var(--red); box-shadow: 0 0 8px var(--red-glow); }
+.agent-card.reviewing::before { background: var(--purple); box-shadow: 0 0 8px var(--purple-glow); }
+.agent-card.brainstorming::before { background: var(--yellow); box-shadow: 0 0 8px var(--yellow-glow); }
+.agent-card.stale::before { background: var(--red); opacity: 0.4; }
+
+.agent-card .agent-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.agent-card .agent-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agent-card.working .agent-dot { background: var(--green); box-shadow: 0 0 6px var(--green-glow); animation: pulse-glow 2s ease-in-out infinite; }
+.agent-card.idle .agent-dot { background: var(--text-dim); }
+.agent-card.blocked .agent-dot { background: var(--red); animation: pulse-glow 1s ease-in-out infinite; }
+.agent-card.reviewing .agent-dot { background: var(--purple); }
+.agent-card.brainstorming .agent-dot { background: var(--yellow); }
+.agent-card.stale .agent-dot { background: var(--red); opacity: 0.5; }
+
+.agent-card .agent-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-card .agent-task {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.agent-card .agent-ref {
+  font-size: 0.7rem;
+  color: var(--cyan);
+  opacity: 0.7;
+}
+
+/* ── Projects ───────────────────────────── */
+.projects-section {
+  margin-bottom: 40px;
+  animation: slide-up 0.5s ease-out 0.2s both;
+}
+
+.project-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.project-row {
+  display: grid;
+  grid-template-columns: 200px 1fr 120px;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.project-row:hover {
+  background: var(--bg-card-hover);
+}
+
+.project-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-bar-container {
+  height: 20px;
+  background: var(--bg-deep);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.project-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.project-bar.total {
+  background: var(--blue);
+  opacity: 0.3;
+}
+
+.project-bar.sprint {
+  background: var(--green);
+  opacity: 0.9;
+}
+
+.project-counts {
+  display: flex;
+  gap: 12px;
+  font-size: 0.78rem;
+  justify-content: flex-end;
+}
+
+.project-counts .count-open {
+  color: var(--text-secondary);
+}
+
+.project-counts .count-sprint {
+  color: var(--green);
+  font-weight: 600;
+}
+
+/* ── Summary Bar ────────────────────────── */
+.summary-bar {
+  display: flex;
+  gap: 32px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  animation: fade-in 0.6s ease-out 0.3s both;
+}
+
+.summary-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.summary-stat .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.summary-stat .dot.green { background: var(--green); }
+.summary-stat .dot.blue { background: var(--blue); }
+.summary-stat .dot.yellow { background: var(--yellow); }
+.summary-stat .dot.red { background: var(--red); }
+.summary-stat .dot.dim { background: var(--text-dim); }
+
+.summary-stat .value {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* ── Pulse indicator (top-right) ────────── */
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  display: inline-block;
+  animation: pulse-glow 2s ease-in-out infinite;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.last-update {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
