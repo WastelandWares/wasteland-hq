@@ -10,6 +10,7 @@ const PINBOARD_PATH = path.join(process.env.HOME, '.claude', 'pinboard.json')
 
 const GITEA_URL = 'http://localhost:3003'
 const GITEA_ORG = 'tquick'
+// Each entry is either 'repo' (uses GITEA_ORG) or 'org/repo' (explicit org)
 const REPOS = [
   'dungeon-crawler',
   'wasteland-infra',
@@ -18,7 +19,16 @@ const REPOS = [
   'dnd-tools',
   'meeting-scribe',
   'wasteland-orchestrator',
+  'severeon/neuroscript-rs',
 ]
+
+function repoFullPath(entry) {
+  return entry.includes('/') ? entry : `${GITEA_ORG}/${entry}`
+}
+
+function repoName(entry) {
+  return entry.includes('/') ? entry.split('/').pop() : entry
+}
 
 function getGiteaToken() {
   try {
@@ -157,9 +167,11 @@ function giteaIssuesPlugin() {
 
         try {
           const allIssues = []
-          for (const repo of REPOS) {
+          for (const entry of REPOS) {
             try {
-              const url = `${GITEA_URL}/api/v1/repos/${GITEA_ORG}/${repo}/issues?state=open&type=issues&limit=50`
+              const fullPath = repoFullPath(entry)
+              const name = repoName(entry)
+              const url = `${GITEA_URL}/api/v1/repos/${fullPath}/issues?state=open&type=issues&limit=50`
               const response = await fetch(url, { headers })
               if (response.ok) {
                 const issues = await response.json()
@@ -170,8 +182,8 @@ function giteaIssuesPlugin() {
                     title: issue.title,
                     body: issue.body || '',
                     state: issue.state,
-                    repo: repo,
-                    url: `${GITEA_URL}/${GITEA_ORG}/${repo}/issues/${issue.number}`,
+                    repo: name,
+                    url: `${GITEA_URL}/${fullPath}/issues/${issue.number}`,
                     labels: (issue.labels || []).map((l) => ({
                       name: l.name,
                       color: l.color,

@@ -11,6 +11,7 @@ const PROJECT_COLORS = {
   'dnd-tools': '#ffc857',
   'meeting-scribe': '#fb923c',
   'wasteland-orchestrator': '#ff5c5c',
+  'neuroscript-rs': '#e879f9',
 }
 
 const PROJECT_COLOR_DIM = Object.fromEntries(
@@ -80,22 +81,41 @@ function getComplexity(issue) {
   return 'medium' // default
 }
 
-function buildGraph(issues) {
-  const g = new dagre.graphlib.Graph()
-  g.setGraph({
-    rankdir: 'TB',
-    ranksep: 80,
-    nodesep: 50,
-    marginx: 40,
-    marginy: 40,
-  })
-  g.setDefaultEdgeLabel(() => ({}))
+// Find connected components in a set of nodes + edges
+function findComponents(nodeKeys, edgeList) {
+  const parent = new Map()
+  for (const key of nodeKeys) parent.set(key, key)
 
+  function find(x) {
+    while (parent.get(x) !== x) {
+      parent.set(x, parent.get(parent.get(x)))
+      x = parent.get(x)
+    }
+    return x
+  }
+  function union(a, b) {
+    parent.set(find(a), find(b))
+  }
+
+  for (const { from, to } of edgeList) {
+    if (parent.has(from) && parent.has(to)) union(from, to)
+  }
+
+  const groups = new Map()
+  for (const key of nodeKeys) {
+    const root = find(key)
+    if (!groups.has(root)) groups.set(root, [])
+    groups.get(root).push(key)
+  }
+  return [...groups.values()]
+}
+
+function buildGraph(issues) {
   const nodeMap = new Map()
   const nodeWidth = 220
   const nodeHeight = 80
 
-  // Add all issues as nodes
+  // Build all node data
   for (const issue of issues) {
     const key = `${issue.repo}#${issue.number}`
     const status = getIssueStatus(issue)
@@ -109,71 +129,149 @@ function buildGraph(issues) {
       color: PROJECT_COLORS[issue.repo] || '#4ea8ff',
       colorDim: PROJECT_COLOR_DIM[issue.repo] || '#4ea8ff30',
     })
-
-    g.setNode(key, { width: nodeWidth, height: nodeHeight })
   }
 
-  // Add edges based on dependencies
-  const edges = []
+  // Collect all edges
+  const allEdges = []
   for (const issue of issues) {
     const deps = extractDependencies(issue)
     const toKey = `${issue.repo}#${issue.number}`
-
     for (const dep of deps) {
       const fromKey = `${dep.repo}#${dep.number}`
       if (nodeMap.has(fromKey)) {
-        g.setEdge(fromKey, toKey)
-        edges.push({ from: fromKey, to: toKey })
+        allEdges.push({ from: fromKey, to: toKey })
       }
     }
   }
 
-  // Also connect issues with "needs-breakdown" to their parent if referenced
-  // and connect issues that share a milestone
+  // Mark needs-breakdown nodes
   for (const issue of issues) {
     const labels = issue.labels.map(l => l.name.toLowerCase())
     if (labels.includes('needs-breakdown') || labels.includes('needs:brainstorm')) {
-      // Mark these as "root" nodes that need work before their dependents
       const key = `${issue.repo}#${issue.number}`
       const node = nodeMap.get(key)
       if (node) node.needsBreakdown = true
     }
   }
 
-  // Run dagre layout
-  dagre.layout(g)
+  // Split into connected components
+  const nodeKeys = [...nodeMap.keys()]
+  const components = findComponents(nodeKeys, allEdges)
 
-  // Extract positioned nodes
-  const nodes = []
-  g.nodes().forEach((key) => {
-    const layoutNode = g.node(key)
-    const data = nodeMap.get(key)
-    if (data && layoutNode) {
-      nodes.push({
-        ...data,
-        x: layoutNode.x,
-        y: layoutNode.y,
-        width: nodeWidth,
-        height: nodeHeight,
-      })
-    }
+  // Sort components: largest first, then by whether they have edges
+  components.sort((a, b) => {
+    const aHasEdges = allEdges.some(e => a.includes(e.from) || a.includes(e.to))
+    const bHasEdges = allEdges.some(e => b.includes(e.from) || b.includes(e.to))
+    if (aHasEdges !== bHasEdges) return bHasEdges ? 1 : -1
+    return b.length - a.length
   })
 
-  // Extract positioned edges with points
-  const positionedEdges = []
-  g.edges().forEach((e) => {
-    const edgeData = g.edge(e)
-    if (edgeData?.points) {
-      positionedEdges.push({
-        from: e.v,
-        to: e.w,
-        points: edgeData.points,
-        fromColor: nodeMap.get(e.v)?.color || '#4ea8ff',
-      })
-    }
-  })
+  // Layout each component separately with dagre, then arrange in a grid
+  const allNodes = []
+  const allPositionedEdges = []
+  const COMPONENT_GAP_X = 60
+  const COMPONENT_GAP_Y = 60
 
-  return { nodes, edges: positionedEdges }
+  // Determine grid columns: ~3 columns for many components, fewer for few
+  const numCols = components.length <= 2 ? components.length
+    : components.length <= 6 ? 3
+    : 4
+
+  let gridX = 0
+  let gridY = 0
+  let colIndex = 0
+  const rowHeights = []
+  let currentRowHeight = 0
+
+  for (const component of components) {
+    // Build a sub-graph for this component
+    const g = new dagre.graphlib.Graph()
+    g.setGraph({
+      rankdir: 'TB',
+      ranksep: 100,
+      nodesep: 40,
+      marginx: 20,
+      marginy: 20,
+    })
+    g.setDefaultEdgeLabel(() => ({}))
+
+    for (const key of component) {
+      g.setNode(key, { width: nodeWidth, height: nodeHeight })
+    }
+
+    // Add edges belonging to this component
+    const compSet = new Set(component)
+    for (const edge of allEdges) {
+      if (compSet.has(edge.from) && compSet.has(edge.to)) {
+        g.setEdge(edge.from, edge.to)
+      }
+    }
+
+    dagre.layout(g)
+
+    // Find bounding box of this component layout
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    g.nodes().forEach((key) => {
+      const n = g.node(key)
+      if (n) {
+        minX = Math.min(minX, n.x - nodeWidth / 2)
+        minY = Math.min(minY, n.y - nodeHeight / 2)
+        maxX = Math.max(maxX, n.x + nodeWidth / 2)
+        maxY = Math.max(maxY, n.y + nodeHeight / 2)
+      }
+    })
+
+    const compWidth = maxX - minX
+    const compHeight = maxY - minY
+
+    // Offset nodes to grid position
+    const offsetX = gridX - minX
+    const offsetY = gridY - minY
+
+    g.nodes().forEach((key) => {
+      const layoutNode = g.node(key)
+      const data = nodeMap.get(key)
+      if (data && layoutNode) {
+        allNodes.push({
+          ...data,
+          x: layoutNode.x + offsetX,
+          y: layoutNode.y + offsetY,
+          width: nodeWidth,
+          height: nodeHeight,
+        })
+      }
+    })
+
+    // Offset edges
+    g.edges().forEach((e) => {
+      const edgeData = g.edge(e)
+      if (edgeData?.points) {
+        allPositionedEdges.push({
+          from: e.v,
+          to: e.w,
+          points: edgeData.points.map(p => ({ x: p.x + offsetX, y: p.y + offsetY })),
+          fromColor: nodeMap.get(e.v)?.color || '#4ea8ff',
+        })
+      }
+    })
+
+    // Advance grid position
+    currentRowHeight = Math.max(currentRowHeight, compHeight)
+    colIndex++
+
+    if (colIndex >= numCols) {
+      // Next row
+      gridX = 0
+      gridY += currentRowHeight + COMPONENT_GAP_Y
+      colIndex = 0
+      rowHeights.push(currentRowHeight)
+      currentRowHeight = 0
+    } else {
+      gridX += compWidth + COMPONENT_GAP_X
+    }
+  }
+
+  return { nodes: allNodes, edges: allPositionedEdges }
 }
 
 // ── SVG Components ──────────────────────────
