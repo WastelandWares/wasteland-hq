@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import './App.css'
+import TechTree from './TechTree.jsx'
 
 const STATE_COLORS = {
   working: 'var(--green)',
@@ -140,9 +141,31 @@ function SummaryBar({ agents, projects }) {
   )
 }
 
+function TabBar({ activeTab, onTabChange }) {
+  return (
+    <div className="tab-bar">
+      <button
+        className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+        onClick={() => onTabChange('dashboard')}
+      >
+        <span className="tab-icon">◉</span>
+        Dashboard
+      </button>
+      <button
+        className={`tab-btn ${activeTab === 'techtree' ? 'active' : ''}`}
+        onClick={() => onTabChange('techtree')}
+      >
+        <span className="tab-icon">⬡</span>
+        Tech Tree
+      </button>
+    </div>
+  )
+}
+
 export default function App() {
   const { data, error } = useStatus(3000)
   const clock = useClock()
+  const [activeTab, setActiveTab] = useState('dashboard')
 
   const agents = data?.agents || []
   const projects = data?.projects || []
@@ -186,28 +209,39 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Agents ── */}
-      <div className="agents-section">
-        <div className="section-label">Agents</div>
-        <div className="agent-grid">
-          {agents.map(a => (
-            <AgentCard key={a.agent} agent={a} />
-          ))}
-        </div>
-      </div>
+      {/* ── Tab Navigation ── */}
+      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* ── Projects ── */}
-      <div className="projects-section">
-        <div className="section-label">Projects</div>
-        <div className="project-rows">
-          {projects.map(p => (
-            <ProjectRow key={p.name} project={p} maxIssues={maxIssues} />
-          ))}
-        </div>
-      </div>
+      {/* ── Dashboard View ── */}
+      {activeTab === 'dashboard' && (
+        <>
+          {/* ── Agents ── */}
+          <div className="agents-section">
+            <div className="section-label">Agents</div>
+            <div className="agent-grid">
+              {agents.map(a => (
+                <AgentCard key={a.agent} agent={a} />
+              ))}
+            </div>
+          </div>
 
-      {/* ── Summary ── */}
-      <SummaryBar agents={agents} projects={projects} />
+          {/* ── Projects ── */}
+          <div className="projects-section">
+            <div className="section-label">Projects</div>
+            <div className="project-rows">
+              {projects.map(p => (
+                <ProjectRow key={p.name} project={p} maxIssues={maxIssues} />
+              ))}
+            </div>
+          </div>
+
+          {/* ── Summary ── */}
+          <SummaryBar agents={agents} projects={projects} />
+        </>
+      )}
+
+      {/* ── Tech Tree View ── */}
+      {activeTab === 'techtree' && <TechTree />}
 
       {error && (
         <div style={{ color: 'var(--red)', fontSize: '0.75rem', marginTop: 12 }}>
