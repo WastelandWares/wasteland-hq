@@ -81,7 +81,7 @@ function getComplexity(issue) {
 }
 
 function buildGraph(issues) {
-  const g = new dagre.Graph()
+  const g = new dagre.graphlib.Graph()
   g.setGraph({
     rankdir: 'TB',
     ranksep: 80,
