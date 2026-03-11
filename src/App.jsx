@@ -3,6 +3,7 @@ import './App.css'
 import TechTree from './TechTree.jsx'
 import VisibilityToggle from './VisibilityToggle.jsx'
 import { useVisibilityToggle, isAgentStale, isPinDone } from './useVisibilityToggle.js'
+import DailyLog from './DailyLog.jsx'
 
 const STATE_COLORS = {
   working: 'var(--green)',
@@ -198,6 +199,13 @@ function TabBar({ activeTab, onTabChange }) {
         <span className="tab-icon">⬡</span>
         Tech Tree
       </button>
+      <button
+        className={`tab-btn ${activeTab === 'dailylog' ? 'active' : ''}`}
+        onClick={() => onTabChange('dailylog')}
+      >
+        <span className="tab-icon">☰</span>
+        Daily Log
+      </button>
     </div>
   )
 }
@@ -332,6 +340,9 @@ export default function App() {
 
       {/* ── Tech Tree View ── */}
       {activeTab === 'techtree' && <TechTree />}
+
+      {/* ── Daily Log View ── */}
+      {activeTab === 'dailylog' && <DailyLog />}
 
       {error && (
         <div style={{ color: 'var(--red)', fontSize: '0.75rem', marginTop: 12 }}>

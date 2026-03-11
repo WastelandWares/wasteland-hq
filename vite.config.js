@@ -2,7 +2,15 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import fs from 'fs'
+import path from 'path'
+import { execSync } from 'child_process'
 import { GITEA_URL, GITEA_ORG, REPO_NAMES } from './src/config/repos.js'
+
+const STATUS_PATH = path.join(process.env.HOME, '.claude', 'hq-status.json')
+const PINBOARD_PATH = path.join(process.env.HOME, '.claude', 'pinboard.json')
+const SUMMARIES_DIR = path.join(process.env.HOME, '.claude', 'daily-summaries')
+const BRIEFINGS_DIR = path.join(process.env.HOME, '.claude', 'briefings')
 
 function getGiteaToken() {
   try {
@@ -156,7 +164,224 @@ function issueStatsPlugin() {
   }
 }
 
+function dailyLogPlugin() {
+  return {
+    name: 'daily-log-api',
+    configureServer(server) {
+      // GET /api/daily-log — list available daily summaries
+      server.middlewares.use('/api/daily-log', (req, res, next) => {
+        const url = new URL(req.url, 'http://localhost')
+
+        // Match /api/daily-log/YYYY-MM-DD for specific date
+        const dateMatch = url.pathname.match(/^\/(\d{4}-\d{2}-\d{2})$/)
+        if (dateMatch) {
+          const date = dateMatch[1]
+          return serveDailySummary(date, res)
+        }
+
+        // /api/daily-log — list all entries
+        if (url.pathname === '/' || url.pathname === '') {
+          return serveDailyList(res)
+        }
+
+        next()
+      })
+    },
+  }
+}
+
+function serveDailyList(res) {
+  try {
+    const entries = []
+
+    // Read from daily-summaries directory
+    if (fs.existsSync(SUMMARIES_DIR)) {
+      const files = fs.readdirSync(SUMMARIES_DIR)
+        .filter(f => f.endsWith('.json'))
+        .sort()
+        .reverse()
+        .slice(0, 30) // Last 30 days max
+
+      for (const file of files) {
+        try {
+          const content = JSON.parse(fs.readFileSync(path.join(SUMMARIES_DIR, file), 'utf-8'))
+          entries.push(content)
+        } catch {
+          // Skip malformed files
+        }
+      }
+    }
+
+    // If no summaries, try to create entries from briefing files
+    if (entries.length === 0 && fs.existsSync(BRIEFINGS_DIR)) {
+      const briefings = fs.readdirSync(BRIEFINGS_DIR)
+        .filter(f => f.endsWith('.md'))
+        .sort()
+        .reverse()
+        .slice(0, 14)
+
+      for (const file of briefings) {
+        const date = file.replace('.md', '')
+        const briefingPath = path.join(BRIEFINGS_DIR, file)
+        try {
+          const content = fs.readFileSync(briefingPath, 'utf-8')
+          // Extract a summary from the briefing
+          const entry = parseBriefingToSummary(date, content)
+          if (entry) entries.push(entry)
+        } catch {
+          // Skip
+        }
+      }
+    }
+
+    res.setHeader('Content-Type', 'application/json')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.end(JSON.stringify({ entries, timestamp: new Date().toISOString() }))
+  } catch (e) {
+    res.statusCode = 500
+    res.setHeader('Content-Type', 'application/json')
+    res.end(JSON.stringify({ error: e.message }))
+  }
+}
+
+function serveDailySummary(date, res) {
+  // Try summary file first
+  const summaryPath = path.join(SUMMARIES_DIR, `${date}.json`)
+  if (fs.existsSync(summaryPath)) {
+    try {
+      const content = fs.readFileSync(summaryPath, 'utf-8')
+      res.setHeader('Content-Type', 'application/json')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.end(content)
+      return
+    } catch {
+      // Fall through
+    }
+  }
+
+  // Fallback to briefing file
+  const briefingPath = path.join(BRIEFINGS_DIR, `${date}.md`)
+  if (fs.existsSync(briefingPath)) {
+    try {
+      const content = fs.readFileSync(briefingPath, 'utf-8')
+      const entry = parseBriefingToSummary(date, content)
+      if (entry) {
+        res.setHeader('Content-Type', 'application/json')
+        res.setHeader('Cache-Control', 'no-cache')
+        res.end(JSON.stringify(entry))
+        return
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  res.statusCode = 404
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({ error: `No summary found for ${date}` }))
+}
+
+function parseBriefingToSummary(date, markdown) {
+  /**
+   * Parse a briefing .md file into a summary-like JSON structure.
+   * This is the fallback when no generated summary JSON exists.
+   */
+  const lines = markdown.split('\n')
+
+  // Extract executive summary
+  let prose = ''
+  let inSummary = false
+  for (const line of lines) {
+    if (line.includes('Executive Summary')) {
+      inSummary = true
+      continue
+    }
+    if (inSummary) {
+      if (line.startsWith('---')) break
+      if (line.trim()) {
+        prose += (prose ? ' ' : '') + line.trim()
+      }
+    }
+  }
+
+  // Extract per-project status as highlights
+  const highlights = []
+  let inProject = false
+  for (const line of lines) {
+    if (line.startsWith('### ') && !line.includes('Raw') && !line.includes('Sync')) {
+      inProject = true
+      continue
+    }
+    if (inProject && line.startsWith('---')) {
+      inProject = false
+      continue
+    }
+    if (inProject && line.startsWith('- ') && highlights.length < 10) {
+      highlights.push(line.slice(2).trim())
+    }
+  }
+
+  // Extract open issues from raw data section
+  const open_issues = {}
+  let inIssues = false
+  let currentRepo = null
+  for (const line of lines) {
+    if (line.includes('Open Issues (Gitea)')) {
+      inIssues = true
+      continue
+    }
+    if (inIssues && line.startsWith('---')) break
+    if (inIssues) {
+      const repoMatch = line.match(/^\*\*([^*]+)\*\*\s*\((\d+)\s+open\)/)
+      if (repoMatch) {
+        currentRepo = repoMatch[1]
+        open_issues[currentRepo] = { count: parseInt(repoMatch[2]), notable: [] }
+        continue
+      }
+      if (currentRepo && line.startsWith('- #')) {
+        open_issues[currentRepo].notable.push(line.slice(2).trim())
+      }
+    }
+  }
+
+  // Extract metadata
+  const genMatch = markdown.match(/Generated:\s*(.+)/)
+  const sessMatch = markdown.match(/Sessions:\s*(\d+)/)
+
+  if (!prose && highlights.length === 0) return null
+
+  // Truncate prose for card preview
+  if (prose.length > 300) {
+    prose = prose.slice(0, 297) + '...'
+  }
+
+  return {
+    date,
+    generated_at: genMatch ? genMatch[1] : null,
+    prose: prose || 'No executive summary available for this date.',
+    highlights,
+    open_issues,
+    notes: [],
+    metrics: {
+      commits: 0,
+      prs_merged: 0,
+      issues_created: 0,
+      issues_closed: 0,
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), giteaIssuesPlugin(), issueStatsPlugin()],
+  plugins: [react(), giteaIssuesPlugin(), issueStatsPlugin(), dailyLogPlugin()],
+  server: {
+    host: '0.0.0.0',
+    hmr: {
+      host: '0.0.0.0',
+      clientPort: 5173,
+    },
+    watch: {
+      ignored: ['**/public/status.json', '**/public/status.json.tmp'],
+    },
+  },
 })
