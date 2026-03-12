@@ -88,7 +88,7 @@ function issueStatsPlugin() {
           const RECENTLY_CLOSED_HOURS = 48
           const now = Date.now()
 
-          for (const repo of REPOS) {
+          for (const repo of REPO_NAMES) {
             try {
               // Fetch open issues
               const openUrl = `${GITEA_URL}/api/v1/repos/${GITEA_ORG}/${repo}/issues?state=open&type=issues&limit=50`

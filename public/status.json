@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-11T04:36:44.452113+00:00",
+  "timestamp": "2026-03-11T06:59:12.103134+00:00",
   "agents": [
     {
       "agent": "codsworth",
@@ -12,7 +12,7 @@
       "pid": 29469,
       "avatar": {},
       "stale": true,
-      "age_sec": 101137,
+      "age_sec": 109685,
       "alive": false
     },
     {
@@ -26,7 +26,7 @@
       "pid": 75083,
       "avatar": {},
       "stale": true,
-      "age_sec": 22179,
+      "age_sec": 30727,
       "alive": false
     },
     {
@@ -40,7 +40,7 @@
       "pid": 40726,
       "avatar": {},
       "stale": true,
-      "age_sec": 20451,
+      "age_sec": 28999,
       "alive": false
     },
     {
@@ -54,7 +54,7 @@
       "pid": 52635,
       "avatar": {},
       "stale": true,
-      "age_sec": 20086,
+      "age_sec": 28634,
       "alive": false
     },
     {
@@ -68,7 +68,7 @@
       "pid": 13444,
       "avatar": {},
       "stale": true,
-      "age_sec": 21257,
+      "age_sec": 29805,
       "alive": false
     },
     {
@@ -82,7 +82,7 @@
       "pid": 59158,
       "avatar": {},
       "stale": true,
-      "age_sec": 100091,
+      "age_sec": 108639,
       "alive": false
     },
     {
@@ -96,7 +96,7 @@
       "pid": 17216,
       "avatar": {},
       "stale": true,
-      "age_sec": 101409,
+      "age_sec": 109957,
       "alive": false
     },
     {
@@ -110,7 +110,7 @@
       "pid": 49022,
       "avatar": {},
       "stale": true,
-      "age_sec": 100475,
+      "age_sec": 109023,
       "alive": false
     },
     {
@@ -124,7 +124,7 @@
       "pid": 60911,
       "avatar": {},
       "stale": true,
-      "age_sec": 100028,
+      "age_sec": 108576,
       "alive": false
     },
     {
@@ -138,21 +138,21 @@
       "pid": 33139,
       "avatar": {},
       "stale": true,
-      "age_sec": 101053,
+      "age_sec": 109601,
       "alive": false
     },
     {
       "agent": "pm",
       "state": "working",
-      "task": "Infrastructure assessment and sprint planning",
-      "repo": null,
+      "task": "Expandable pinboard cards with rich details",
+      "repo": "tquick/wasteland-hq",
       "issue": null,
-      "started_at": "2026-03-11T04:27:19Z",
-      "last_heartbeat": "2026-03-11T04:27:19Z",
-      "pid": 67396,
+      "started_at": "2026-03-11T05:22:15Z",
+      "last_heartbeat": "2026-03-11T05:22:15Z",
+      "pid": 45767,
       "avatar": {},
       "stale": true,
-      "age_sec": 565,
+      "age_sec": 5817,
       "alive": false
     },
     {
@@ -166,7 +166,7 @@
       "pid": 46159,
       "avatar": {},
       "stale": true,
-      "age_sec": 100594,
+      "age_sec": 109142,
       "alive": false
     }
   ],
@@ -212,6 +212,141 @@
       "open": 21,
       "sprint": 0,
       "sprint_issues": []
+    },
+    {
+      "name": "wasteland-hq",
+      "full_name": "tquick/wasteland-hq",
+      "open": 11,
+      "sprint": 0,
+      "sprint_issues": []
+    }
+  ],
+  "pinboard": [
+    {
+      "id": "56953e18",
+      "text": "Deploy dungeon-crawler latest build to /var/www",
+      "priority": "high",
+      "project": "dungeon-crawler",
+      "color": "red",
+      "created_at": "2026-03-10T23:55:53.535859",
+      "created_by": "pm",
+      "done": true,
+      "completed_at": "2026-03-10T23:58:17.238469",
+      "completed_by": "pm"
+    },
+    {
+      "id": "5926f274",
+      "text": "Set up wastelandwares.com homepage + logo",
+      "priority": "high",
+      "project": "wasteland-infra",
+      "color": "cyan",
+      "created_at": "2026-03-10T23:55:53.604696",
+      "created_by": "pm",
+      "done": false,
+      "details": "Homepage HTML is built at ~/projects/wasteland-hq/homepage/index.html\nNeeds: deploy to aibox /var/www/wastelandwares + Caddy config + DNS propagation",
+      "issue": "wasteland-infra#6",
+      "links": [
+        {
+          "label": "Homepage source",
+          "url": "https://github.com/WastelandWares/wasteland-hq"
+        },
+        {
+          "label": "Caddy route plan",
+          "url": "https://git.wastelandwares.com/tquick/wasteland-infra/issues/6"
+        }
+      ],
+      "code": "# Deploy steps (need sudo on aibox)\nssh aibox 'sudo mkdir -p /var/www/wastelandwares'\nscp homepage/index.html aibox:/tmp/\nssh aibox 'sudo cp /tmp/index.html /var/www/wastelandwares/'",
+      "updated_at": "2026-03-11T00:24:12.477599",
+      "updated_by": "pm"
+    },
+    {
+      "id": "271e3c2e",
+      "text": "Cross-session task list needs dashboard widget",
+      "priority": "medium",
+      "project": "wasteland-hq",
+      "color": "yellow",
+      "created_at": "2026-03-10T23:55:53.672117",
+      "created_by": "pm",
+      "done": true,
+      "completed_at": "2026-03-10T23:59:18.948325",
+      "completed_by": "pm"
+    },
+    {
+      "id": "49c9c0bb",
+      "text": "Try deepseek-coder for meeting-scribe idea extraction",
+      "priority": "low",
+      "project": "meeting-scribe",
+      "color": "blue",
+      "created_at": "2026-03-10T23:55:53.742666",
+      "created_by": "pm",
+      "done": false,
+      "details": "phi4-mini scores 65/100 on summaries at 99 tok/s.\ndeepseek-coder scored 68/100 on idea extraction.\nTest with meeting-scribe assistant pipeline to compare quality.",
+      "issue": "meeting-scribe#25",
+      "links": [
+        {
+          "label": "Ollama benchmarks",
+          "url": "https://git.wastelandwares.com/tquick/meeting-scribe/issues/25"
+        }
+      ],
+      "updated_at": "2026-03-11T00:24:12.477610",
+      "updated_by": "pm"
+    },
+    {
+      "id": "1bc9019b",
+      "text": "Reconcile turtles subdomain \u2014 dungeon-crawler removed",
+      "priority": "medium",
+      "project": "wasteland-infra",
+      "color": "green",
+      "created_at": "2026-03-10T23:55:53.811256",
+      "created_by": "pm",
+      "done": true,
+      "completed_at": "2026-03-10T23:58:17.305508",
+      "completed_by": "pm"
+    },
+    {
+      "id": "d4e82451",
+      "text": "DNS: add wastelandwares.com A record \u2192 154.36.228.38",
+      "priority": "high",
+      "project": "wasteland-infra",
+      "color": "red",
+      "created_at": "2026-03-10T23:59:19.015770",
+      "created_by": "pm",
+      "done": false,
+      "details": "Point wastelandwares.com A record to aibox public IP.\nNameserver: wherever the domain is registered.\nAfter DNS propagates, Caddy will auto-provision TLS via Let's Encrypt.",
+      "code": "# Verify DNS propagation\ndig wastelandwares.com A +short\n# Expected: 154.36.228.38\n\n# Then on aibox, add Caddy block:\n# wastelandwares.com {\n#     root * /var/www/wastelandwares\n#     file_server\n# }",
+      "links": [
+        {
+          "label": "Caddy route issue",
+          "url": "https://git.wastelandwares.com/tquick/wasteland-infra/issues/6"
+        },
+        {
+          "label": "Infra URL plan",
+          "url": "https://git.wastelandwares.com/tquick/wasteland-infra/issues/2"
+        }
+      ],
+      "updated_at": "2026-03-11T00:24:12.477612",
+      "updated_by": "pm"
+    },
+    {
+      "id": "58da81c9",
+      "text": "Deploy homepage to /var/www/wastelandwares on aibox (needs sudo)",
+      "priority": "high",
+      "project": "wasteland-infra",
+      "color": "red",
+      "created_at": "2026-03-10T23:59:19.079688",
+      "created_by": "pm",
+      "done": false,
+      "details": "Homepage is ready at ~/projects/wasteland-hq/homepage/index.html\nDark industrial theme with SVG hex logo, project links, JetBrains Mono.\nNeeds sudo on aibox to write to /var/www.",
+      "issue": "wasteland-infra#16",
+      "code": "# On aibox (requires sudo):\nsudo mkdir -p /var/www/wastelandwares\nsudo cp /tmp/index.html /var/www/wastelandwares/\nsudo systemctl reload caddy",
+      "links": [
+        {
+          "label": "Zero-downtime deploy issue",
+          "url": "https://git.wastelandwares.com/tquick/wasteland-infra/issues/16"
+        }
+      ],
+      "updated_at": "2026-03-11T00:24:12.477614",
+      "updated_by": "pm"
     }
   ]
 }
