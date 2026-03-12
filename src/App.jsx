@@ -4,7 +4,7 @@ import { POLL_STATUS_INTERVAL, POLL_ISSUE_STATS_INTERVAL } from './config/repos.
 import './App.css'
 import TechTree from './TechTree.jsx'
 import VisibilityToggle from './VisibilityToggle.jsx'
-import { useVisibilityToggle, isAgentStale, isPinDone } from './useVisibilityToggle.js'
+import { useVisibilityToggle, isAgentStale } from './useVisibilityToggle.js'
 import DailyLog from './DailyLog.jsx'
 
 const STATE_COLORS = {
