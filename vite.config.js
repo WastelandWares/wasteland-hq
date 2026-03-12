@@ -70,7 +70,93 @@ function giteaIssuesPlugin() {
   }
 }
 
+function issueStatsPlugin() {
+  return {
+    name: 'issue-stats-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/issue-stats', async (req, res) => {
+        const token = getGiteaToken()
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `token ${token}` } : {}),
+        }
+
+        try {
+          const openIssues = []
+          const closedIssues = []
+          const STALE_DAYS = 7
+          const RECENTLY_CLOSED_HOURS = 48
+          const now = Date.now()
+
+          for (const repo of REPOS) {
+            try {
+              // Fetch open issues
+              const openUrl = `${GITEA_URL}/api/v1/repos/${GITEA_ORG}/${repo}/issues?state=open&type=issues&limit=50`
+              const openRes = await fetch(openUrl, { headers })
+              if (openRes.ok) {
+                const issues = await openRes.json()
+                openIssues.push(...issues.map(i => ({ ...i, repo })))
+              }
+
+              // Fetch recently closed issues (sorted by updated_at desc)
+              const closedUrl = `${GITEA_URL}/api/v1/repos/${GITEA_ORG}/${repo}/issues?state=closed&type=issues&limit=20&sort=updated&direction=desc`
+              const closedRes = await fetch(closedUrl, { headers })
+              if (closedRes.ok) {
+                const issues = await closedRes.json()
+                closedIssues.push(...issues.map(i => ({ ...i, repo })))
+              }
+            } catch {
+              // Skip repos that fail
+            }
+          }
+
+          // Compute stats
+          const totalOpen = openIssues.length
+
+          // In-progress: has tier:now, in-progress label, or sprint-related label
+          const inProgress = openIssues.filter(i => {
+            const labels = (i.labels || []).map(l => l.name.toLowerCase())
+            return labels.includes('in-progress') ||
+                   labels.includes('tier:now') ||
+                   labels.some(l => l.includes('sprint'))
+          }).length
+
+          // Stalled: in-progress/tier:now but no update in STALE_DAYS
+          const staleThreshold = now - (STALE_DAYS * 24 * 60 * 60 * 1000)
+          const stalled = openIssues.filter(i => {
+            const labels = (i.labels || []).map(l => l.name.toLowerCase())
+            const isActive = labels.includes('in-progress') ||
+                             labels.includes('tier:now') ||
+                             labels.some(l => l.includes('sprint'))
+            const lastUpdate = new Date(i.updated_at).getTime()
+            return isActive && lastUpdate < staleThreshold
+          }).length
+
+          // Recently closed: closed within RECENTLY_CLOSED_HOURS
+          const closedThreshold = now - (RECENTLY_CLOSED_HOURS * 60 * 60 * 1000)
+          const recentlyClosed = closedIssues.filter(i => {
+            const closedAt = new Date(i.closed_at || i.updated_at).getTime()
+            return closedAt >= closedThreshold
+          }).length
+
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({
+            open: totalOpen,
+            inProgress,
+            stalled,
+            recentlyClosed,
+            timestamp: new Date().toISOString(),
+          }))
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: err.message }))
+        }
+      })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), giteaIssuesPlugin()],
+  plugins: [react(), giteaIssuesPlugin(), issueStatsPlugin()],
 })

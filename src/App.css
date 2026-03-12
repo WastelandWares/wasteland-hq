@@ -411,12 +411,26 @@
 /* ── Summary Bar ────────────────────────── */
 .summary-bar {
   display: flex;
-  gap: 32px;
+  flex-wrap: wrap;
+  gap: 12px 32px;
   padding: 16px 0;
   border-top: 1px solid var(--border-subtle);
   font-size: 0.78rem;
   color: var(--text-dim);
   animation: fade-in 0.6s ease-out 0.3s both;
+}
+
+.summary-group {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.summary-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border-subtle);
+  align-self: center;
 }
 
 .summary-stat {
@@ -433,6 +447,7 @@
 
 .summary-stat .dot.green { background: var(--green); }
 .summary-stat .dot.blue { background: var(--blue); }
+.summary-stat .dot.cyan { background: var(--cyan, #22d3ee); }
 .summary-stat .dot.yellow { background: var(--yellow); }
 .summary-stat .dot.red { background: var(--red); }
 .summary-stat .dot.dim { background: var(--text-dim); }
@@ -440,6 +455,12 @@
 .summary-stat .value {
   font-weight: 600;
   color: var(--text-secondary);
+}
+
+.summary-stat .stat-detail {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  opacity: 0.7;
 }
 
 /* ── Pulse indicator (top-right) ────────── */
