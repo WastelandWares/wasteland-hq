@@ -39,6 +39,26 @@ function useStatus(interval = 3000) {
   return { data, error }
 }
 
+function useIssueStats(interval = 30000) {
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('/api/issue-stats?' + Date.now())
+        if (res.ok) setStats(await res.json())
+      } catch {
+        // Silently fail — summary bar shows fallback
+      }
+    }
+    fetchStats()
+    const id = setInterval(fetchStats, interval)
+    return () => clearInterval(id)
+  }, [interval])
+
+  return stats
+}
+
 function useClock() {
   const [time, setTime] = useState(new Date())
   useEffect(() => {
@@ -108,36 +128,54 @@ function ProjectRow({ project, maxIssues }) {
   )
 }
 
-function SummaryBar({ agents, projects }) {
+function SummaryBar({ agents, issueStats }) {
   const working = agents?.filter(a => a.state === 'working' && a.alive).length || 0
   const idle = agents?.filter(a => a.state === 'idle').length || 0
   const stale = agents?.filter(isAgentStale).length || 0
-  const totalIssues = projects?.reduce((s, p) => s + p.open, 0) || 0
-  const totalSprint = projects?.reduce((s, p) => s + p.sprint, 0) || 0
 
   return (
     <div className="summary-bar">
-      <div className="summary-stat">
-        <div className="dot green" />
-        <span className="value">{working}</span> working
-      </div>
-      <div className="summary-stat">
-        <div className="dot dim" />
-        <span className="value">{idle}</span> idle
-      </div>
-      {stale > 0 && (
+      {/* Agent stats */}
+      <div className="summary-group">
         <div className="summary-stat">
-          <div className="dot red" />
-          <span className="value">{stale}</span> stale
+          <div className="dot green" />
+          <span className="value">{working}</span> working
         </div>
-      )}
-      <div className="summary-stat">
-        <div className="dot blue" />
-        <span className="value">{totalIssues}</span> issues
+        <div className="summary-stat">
+          <div className="dot dim" />
+          <span className="value">{idle}</span> idle
+        </div>
+        {stale > 0 && (
+          <div className="summary-stat">
+            <div className="dot red" />
+            <span className="value">{stale}</span> stale
+          </div>
+        )}
       </div>
-      <div className="summary-stat">
-        <div className="dot green" />
-        <span className="value">{totalSprint}</span> in sprint
+
+      {/* Separator */}
+      <div className="summary-divider" />
+
+      {/* Issue stats */}
+      <div className="summary-group">
+        <div className="summary-stat">
+          <div className="dot blue" />
+          <span className="value">{issueStats?.open ?? '–'}</span> open
+        </div>
+        <div className="summary-stat">
+          <div className="dot cyan" />
+          <span className="value">{issueStats?.inProgress ?? '–'}</span> in progress
+        </div>
+        {(issueStats?.stalled ?? 0) > 0 && (
+          <div className="summary-stat">
+            <div className="dot yellow" />
+            <span className="value">{issueStats.stalled}</span> stalled
+          </div>
+        )}
+        <div className="summary-stat">
+          <div className="dot green" />
+          <span className="value">{issueStats?.recentlyClosed ?? '–'}</span> closed <span className="stat-detail">48h</span>
+        </div>
       </div>
     </div>
   )
@@ -166,6 +204,7 @@ function TabBar({ activeTab, onTabChange }) {
 
 export default function App() {
   const { data, error } = useStatus(3000)
+  const issueStats = useIssueStats(30000)
   const clock = useClock()
   const [activeTab, setActiveTab] = useState('dashboard')
 
@@ -287,7 +326,7 @@ export default function App() {
           </div>
 
           {/* ── Summary ── */}
-          <SummaryBar agents={agents} projects={projects} />
+          <SummaryBar agents={agents} issueStats={issueStats} />
         </>
       )}
 
