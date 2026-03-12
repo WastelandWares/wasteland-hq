@@ -496,7 +496,7 @@ function DetailPanel({ node, onClose }) {
         rel="noopener noreferrer"
         className="detail-link"
       >
-        Open in Gitea →
+        Open in GitHub →
       </a>
     </div>
   )
@@ -608,7 +608,7 @@ export default function TechTree() {
       <div className="tech-tree-container">
         <div className="tech-loading">
           <div className="loading-spinner" />
-          <span>Scanning Gitea for issues…</span>
+          <span>Scanning GitHub for issues…</span>
         </div>
       </div>
     )
@@ -619,9 +619,9 @@ export default function TechTree() {
       <div className="tech-tree-container">
         <div className="tech-error">
           <span className="error-icon">⚠</span>
-          <span>Connection to Gitea failed: {error}</span>
+          <span>Connection to GitHub failed: {error}</span>
           <div className="error-hint">
-            Ensure Gitea is running at localhost:3003
+            Check your GitHub token and network connection
           </div>
         </div>
       </div>
