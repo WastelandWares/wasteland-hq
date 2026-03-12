@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
 import { dbg, dbgDiff, startDomObserver, trackRender } from './debug'
+import { POLL_STATUS_INTERVAL, POLL_ISSUE_STATS_INTERVAL } from './config/repos.js'
 import './App.css'
 import TechTree from './TechTree.jsx'
 import VisibilityToggle from './VisibilityToggle.jsx'
@@ -36,7 +37,7 @@ const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 }
  * Stabilizes pinboard/agents/projects references via
  * JSON comparison so downstream memos work correctly.
  * ──────────────────────────────────────────────────────── */
-function useStatus(interval = 3000) {
+function useStatus(interval = POLL_STATUS_INTERVAL) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const prevJsonRef = useRef('')
@@ -120,7 +121,7 @@ function useStatus(interval = 3000) {
   return { data, error }
 }
 
-function useIssueStats(interval = 30000) {
+function useIssueStats(interval = POLL_ISSUE_STATS_INTERVAL) {
   const [stats, setStats] = useState(null)
 
   useEffect(() => {
@@ -128,8 +129,8 @@ function useIssueStats(interval = 30000) {
       try {
         const res = await fetch('/api/issue-stats?' + Date.now())
         if (res.ok) setStats(await res.json())
-      } catch {
-        // Silently fail — summary bar shows fallback
+      } catch (e) {
+        console.warn('Failed to fetch issue stats:', e)
       }
     }
     fetchStats()
@@ -583,8 +584,8 @@ function TabBar({ activeTab, onTabChange }) {
 }
 
 export default function App() {
-  const { data, error } = useStatus(3000)
-  const issueStats = useIssueStats(30000)
+  const { data, error } = useStatus(POLL_STATUS_INTERVAL)
+  const issueStats = useIssueStats(POLL_ISSUE_STATS_INTERVAL)
   const [activeTab, setActiveTab] = useState('dashboard')
   const renderCount = trackRender('App')
   const prevDataRef = useRef(null)

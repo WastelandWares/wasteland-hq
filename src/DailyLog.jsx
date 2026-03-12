@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import './DailyLog.css'
 
+/* ── Constants ────────────────────────────── */
+const MS_PER_DAY = 86400000
+
 /* ── Date helpers ─────────────────────────── */
 function formatDate(dateStr) {
   const d = new Date(dateStr + 'T12:00:00')
@@ -16,7 +19,7 @@ function daysAgo(dateStr) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const target = new Date(dateStr + 'T00:00:00')
-  const diff = Math.floor((today - target) / 86400000)
+  const diff = Math.floor((today - target) / MS_PER_DAY)
   if (diff === 0) return 'Today'
   if (diff === 1) return 'Yesterday'
   return `${diff} days ago`
@@ -210,6 +213,8 @@ export default function DailyLog() {
         }
       } catch {
         // Fall through to using the preview, but mark the error
+        setSelectedEntry({ ...entry, _fetchError: true })
+        return
       }
       // Fetch failed, show preview with error indication
       setSelectedEntry({ ...entry, _fetchError: true })

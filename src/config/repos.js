@@ -11,6 +11,12 @@ export const GITHUB_URL = 'https://api.github.com'
 export const GITHUB_ORG = 'severeon'
 
 /**
+ * Polling intervals (milliseconds)
+ */
+export const POLL_STATUS_INTERVAL = 3000
+export const POLL_ISSUE_STATS_INTERVAL = 30000
+
+/**
  * Tracked repositories with display metadata.
  * @type {Array<{ name: string, color: string }>}
  */
