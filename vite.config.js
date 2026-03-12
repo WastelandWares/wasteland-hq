@@ -2,18 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-
-const GITEA_URL = 'http://localhost:3003'
-const GITEA_ORG = 'tquick'
-const REPOS = [
-  'dungeon-crawler',
-  'wasteland-infra',
-  'claude-gate',
-  'wasteland-hq',
-  'dnd-tools',
-  'meeting-scribe',
-  'wasteland-orchestrator',
-]
+import { GITEA_URL, GITEA_ORG, REPO_NAMES } from './src/config/repos.js'
 
 function getGiteaToken() {
   try {
@@ -38,7 +27,7 @@ function giteaIssuesPlugin() {
 
         try {
           const allIssues = []
-          for (const repo of REPOS) {
+          for (const repo of REPO_NAMES) {
             try {
               const url = `${GITEA_URL}/api/v1/repos/${GITEA_ORG}/${repo}/issues?state=open&type=issues&limit=50`
               const response = await fetch(url, { headers })
