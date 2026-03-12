@@ -30,6 +30,12 @@ function SummaryDetail({ summary, onBack }) {
         &larr; Back to log
       </button>
 
+      {summary._fetchError && (
+        <div style={{ padding: '12px', marginBottom: '12px', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '14px' }}>
+          ⚠ Could not load full details. Showing preview.
+        </div>
+      )}
+
       <div className="daily-detail-header">
         <h2 className="daily-detail-date">{formatDate(summary.date)}</h2>
         <span className="daily-detail-ago">{daysAgo(summary.date)}</span>
@@ -203,8 +209,11 @@ export default function DailyLog() {
           return
         }
       } catch {
-        // Fall through to using the preview
+        // Fall through to using the preview, but mark the error
       }
+      // Fetch failed, show preview with error indication
+      setSelectedEntry({ ...entry, _fetchError: true })
+      return
     }
     setSelectedEntry(entry)
   }, [])

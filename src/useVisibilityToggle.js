@@ -23,8 +23,9 @@ export function useVisibilityToggle(storageKey, { items = [], isHidden }) {
     })
   }, [storageKey])
 
-  const visible = showAll ? items : items.filter(item => !isHidden(item))
-  const hiddenCount = items.length - items.filter(item => !isHidden(item)).length
+  const filtered = items.filter(item => !isHidden(item))
+  const visible = showAll ? items : filtered
+  const hiddenCount = items.length - filtered.length
 
   return { showAll, toggle, visible, hiddenCount }
 }

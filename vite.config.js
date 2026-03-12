@@ -34,15 +34,14 @@ function githubIssuesPlugin() {
 
         try {
           const allIssues = []
-          for (const repo of REPO_NAMES) {
-            try {
-              const url = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=open&per_page=100`
-              const response = await fetch(url, { headers })
-              if (response.ok) {
-                const issues = await response.json()
-                allIssues.push(
-                  // GitHub includes PRs in the issues endpoint; filter them out
-                  ...issues
+          const results = await Promise.all(
+            REPO_NAMES.map(async (repo) => {
+              try {
+                const url = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=open&per_page=100`
+                const response = await fetch(url, { headers })
+                if (response.ok) {
+                  const issues = await response.json()
+                  return issues
                     .filter((issue) => !issue.pull_request)
                     .map((issue) => ({
                       id: issue.id,
@@ -61,12 +60,14 @@ function githubIssuesPlugin() {
                       created_at: issue.created_at,
                       updated_at: issue.updated_at,
                     }))
-                )
+                }
+              } catch {
+                // Skip repos that fail (might not exist)
               }
-            } catch {
-              // Skip repos that fail (might not exist)
-            }
-          }
+              return []
+            })
+          )
+          allIssues.push(...results.flat())
 
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ issues: allIssues, timestamp: new Date().toISOString() }))
@@ -92,37 +93,43 @@ function issueStatsPlugin() {
         }
 
         try {
-          const openIssues = []
-          const closedIssues = []
           const STALE_DAYS = 7
           const RECENTLY_CLOSED_HOURS = 48
           const now = Date.now()
 
-          for (const repo of REPO_NAMES) {
-            try {
-              // Fetch open issues (GitHub includes PRs — filter them out)
-              const openUrl = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=open&per_page=100`
-              const openRes = await fetch(openUrl, { headers })
-              if (openRes.ok) {
-                const issues = await openRes.json()
-                openIssues.push(
-                  ...issues.filter(i => !i.pull_request).map(i => ({ ...i, repo }))
-                )
-              }
+          const results = await Promise.all(
+            REPO_NAMES.map(async (repo) => {
+              const openIssues = []
+              const closedIssues = []
+              try {
+                // Fetch open issues (GitHub includes PRs — filter them out)
+                const openUrl = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=open&per_page=100`
+                const openRes = await fetch(openUrl, { headers })
+                if (openRes.ok) {
+                  const issues = await openRes.json()
+                  openIssues.push(
+                    ...issues.filter(i => !i.pull_request).map(i => ({ ...i, repo }))
+                  )
+                }
 
-              // Fetch recently closed issues (sorted by updated desc)
-              const closedUrl = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=closed&per_page=20&sort=updated&direction=desc`
-              const closedRes = await fetch(closedUrl, { headers })
-              if (closedRes.ok) {
-                const issues = await closedRes.json()
-                closedIssues.push(
-                  ...issues.filter(i => !i.pull_request).map(i => ({ ...i, repo }))
-                )
+                // Fetch recently closed issues (sorted by updated desc)
+                const closedUrl = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=closed&per_page=20&sort=updated&direction=desc`
+                const closedRes = await fetch(closedUrl, { headers })
+                if (closedRes.ok) {
+                  const issues = await closedRes.json()
+                  closedIssues.push(
+                    ...issues.filter(i => !i.pull_request).map(i => ({ ...i, repo }))
+                  )
+                }
+              } catch {
+                // Skip repos that fail
               }
-            } catch {
-              // Skip repos that fail
-            }
-          }
+              return { openIssues, closedIssues }
+            })
+          )
+
+          const openIssues = results.flatMap(r => r.openIssues)
+          const closedIssues = results.flatMap(r => r.closedIssues)
 
           // Compute stats
           const totalOpen = openIssues.length
@@ -293,7 +300,7 @@ function dailyLogPlugin() {
         const url = new URL(req.url, 'http://localhost')
 
         // Match /api/daily-log/YYYY-MM-DD for specific date
-        const dateMatch = url.pathname.match(/^\/(\d{4}-\d{2}-\d{2})$/)
+        const dateMatch = url.pathname.match(/(\d{4}-\d{2}-\d{2})$/)
         if (dateMatch) {
           const date = dateMatch[1]
           return serveDailySummary(date, res)
