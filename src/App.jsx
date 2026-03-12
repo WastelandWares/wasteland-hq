@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import TechTree from './TechTree.jsx'
+import VisibilityToggle from './VisibilityToggle.jsx'
+import { useVisibilityToggle, isAgentStale, isPinDone } from './useVisibilityToggle.js'
 
 const STATE_COLORS = {
   working: 'var(--green)',
@@ -109,7 +111,7 @@ function ProjectRow({ project, maxIssues }) {
 function SummaryBar({ agents, projects }) {
   const working = agents?.filter(a => a.state === 'working' && a.alive).length || 0
   const idle = agents?.filter(a => a.state === 'idle').length || 0
-  const stale = agents?.filter(a => a.stale && !a.alive).length || 0
+  const stale = agents?.filter(isAgentStale).length || 0
   const totalIssues = projects?.reduce((s, p) => s + p.open, 0) || 0
   const totalSprint = projects?.reduce((s, p) => s + p.sprint, 0) || 0
 
@@ -169,8 +171,19 @@ export default function App() {
 
   const agents = data?.agents || []
   const projects = data?.projects || []
+  const pinboard = data?.pinboard || []
   const lead = getLeadAgent(agents)
   const maxIssues = Math.max(...projects.map(p => p.open), 1)
+
+  // Shared visibility toggles using the DRY hook
+  const agentVis = useVisibilityToggle('hq-show-all-agents', {
+    items: agents,
+    isHidden: isAgentStale,
+  })
+  const pinVis = useVisibilityToggle('hq-show-done-pins', {
+    items: pinboard,
+    isHidden: isPinDone,
+  })
 
   const timeStr = clock.toLocaleTimeString('en-US', {
     hour: '2-digit',
@@ -217,13 +230,51 @@ export default function App() {
         <>
           {/* ── Agents ── */}
           <div className="agents-section">
-            <div className="section-label">Agents</div>
+            <div className="section-label">
+              Agents
+              <VisibilityToggle
+                showAll={agentVis.showAll}
+                hiddenCount={agentVis.hiddenCount}
+                onToggle={agentVis.toggle}
+                hideLabel={`Hide stale (${agentVis.hiddenCount})`}
+                showLabel={`Show all (${agents.length})`}
+              />
+            </div>
             <div className="agent-grid">
-              {agents.map(a => (
+              {agentVis.visible.map(a => (
                 <AgentCard key={a.agent} agent={a} />
               ))}
             </div>
           </div>
+
+          {/* ── Pinboard ── */}
+          {pinboard.length > 0 && (
+            <div className="pinboard-section">
+              <div className="section-label">
+                Pinboard
+                <VisibilityToggle
+                  showAll={pinVis.showAll}
+                  hiddenCount={pinVis.hiddenCount}
+                  onToggle={pinVis.toggle}
+                  hideLabel={`Hide done (${pinVis.hiddenCount})`}
+                  showLabel={`Show all (+${pinVis.hiddenCount} done)`}
+                />
+              </div>
+              <div className="pin-grid">
+                {pinVis.visible.map(note => (
+                  <div key={note.id} className={`pin-card ${note.done ? 'done' : ''} ${note.priority === 'urgent' ? 'urgent' : ''}`}>
+                    <div className="pin-text">{note.text}</div>
+                    {note.project && <div className="pin-project">{note.project}</div>}
+                    {note.tags?.length > 0 && (
+                      <div className="pin-tags">
+                        {note.tags.map(t => <span key={t} className="pin-tag">{t}</span>)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ── Projects ── */}
           <div className="projects-section">
