@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'fs'
+import fs from 'fs'
+import path from 'path'
 import { join } from 'path'
 import fs from 'fs'
 import path from 'path'
@@ -164,6 +166,120 @@ function issueStatsPlugin() {
   }
 }
 
+function hqApiPlugin() {
+  return {
+    name: 'hq-api',
+    configureServer(server) {
+      // Serve /status.json from ~/.claude/hq-status.json
+      server.middlewares.use('/status.json', (req, res) => {
+        try {
+          const content = fs.readFileSync(STATUS_PATH, 'utf-8')
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Cache-Control', 'no-cache, no-store')
+          res.end(content)
+        } catch (e) {
+          res.statusCode = 404
+          res.end('{}')
+        }
+      })
+
+      // POST /api/pin-verify — run a pin's verify command
+      server.middlewares.use('/api/pin-verify', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.end(JSON.stringify({ error: 'POST only' }))
+          return
+        }
+
+        let body = ''
+        req.on('data', chunk => { body += chunk })
+        req.on('end', () => {
+          try {
+            const { pinId } = JSON.parse(body)
+            if (!pinId) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: 'pinId required' }))
+              return
+            }
+
+            const board = JSON.parse(fs.readFileSync(PINBOARD_PATH, 'utf-8'))
+            const pin = board.notes.find(n => n.id === pinId)
+
+            if (!pin) {
+              res.statusCode = 404
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: 'Pin not found' }))
+              return
+            }
+
+            if (!pin.verify) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: 'Pin has no verify command' }))
+              return
+            }
+
+            let stdout = ''
+            let stderr = ''
+            let passed = false
+
+            try {
+              stdout = execSync(pin.verify, {
+                timeout: 30000,
+                encoding: 'utf-8',
+                shell: '/bin/bash',
+                env: { ...process.env, PATH: process.env.PATH + ':/opt/homebrew/bin:/usr/local/bin' },
+              }).trim()
+              passed = true
+            } catch (execErr) {
+              stdout = (execErr.stdout || '').trim()
+              stderr = (execErr.stderr || '').trim()
+              passed = false
+            }
+
+            const now = new Date().toISOString()
+
+            if (passed) {
+              pin.done = true
+              pin.completed_at = now
+              pin.completed_by = 'dashboard-verify'
+              pin.verify_result = { passed: true, output: stdout, verified_at: now }
+            } else {
+              pin.verify_result = {
+                passed: false,
+                output: stdout,
+                error: stderr,
+                verified_at: now,
+              }
+            }
+
+            board.last_updated = now
+            board.last_updated_by = 'dashboard-verify'
+
+            const tmp = PINBOARD_PATH + '.tmp'
+            fs.writeFileSync(tmp, JSON.stringify(board, null, 2))
+            fs.renameSync(tmp, PINBOARD_PATH)
+
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({
+              passed,
+              output: stdout,
+              error: stderr || undefined,
+              pin: { id: pin.id, done: pin.done },
+            }))
+
+          } catch (e) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+      })
+    },
+  }
+}
+
 function dailyLogPlugin() {
   return {
     name: 'daily-log-api',
@@ -194,13 +310,12 @@ function serveDailyList(res) {
   try {
     const entries = []
 
-    // Read from daily-summaries directory
     if (fs.existsSync(SUMMARIES_DIR)) {
       const files = fs.readdirSync(SUMMARIES_DIR)
-        .filter(f => f.endsWith('.json'))
+        .filter(f => f.endsWith('.json') && /^\d{4}-\d{2}-\d{2}\.json$/.test(f))
         .sort()
         .reverse()
-        .slice(0, 30) // Last 30 days max
+        .slice(0, 30)
 
       for (const file of files) {
         try {
@@ -282,46 +397,26 @@ function serveDailySummary(date, res) {
 }
 
 function parseBriefingToSummary(date, markdown) {
-  /**
-   * Parse a briefing .md file into a summary-like JSON structure.
-   * This is the fallback when no generated summary JSON exists.
-   */
   const lines = markdown.split('\n')
 
-  // Extract executive summary
   let prose = ''
   let inSummary = false
   for (const line of lines) {
-    if (line.includes('Executive Summary')) {
-      inSummary = true
-      continue
-    }
+    if (line.includes('Executive Summary')) { inSummary = true; continue }
     if (inSummary) {
       if (line.startsWith('---')) break
-      if (line.trim()) {
-        prose += (prose ? ' ' : '') + line.trim()
-      }
+      if (line.trim()) prose += (prose ? ' ' : '') + line.trim()
     }
   }
 
-  // Extract per-project status as highlights
   const highlights = []
   let inProject = false
   for (const line of lines) {
-    if (line.startsWith('### ') && !line.includes('Raw') && !line.includes('Sync')) {
-      inProject = true
-      continue
-    }
-    if (inProject && line.startsWith('---')) {
-      inProject = false
-      continue
-    }
-    if (inProject && line.startsWith('- ') && highlights.length < 10) {
-      highlights.push(line.slice(2).trim())
-    }
+    if (line.startsWith('### ') && !line.includes('Raw') && !line.includes('Sync')) { inProject = true; continue }
+    if (inProject && line.startsWith('---')) { inProject = false; continue }
+    if (inProject && line.startsWith('- ') && highlights.length < 10) highlights.push(line.slice(2).trim())
   }
 
-  // Extract open issues from raw data section
   const open_issues = {}
   let inIssues = false
   let currentRepo = null
@@ -373,7 +468,7 @@ function parseBriefingToSummary(date, markdown) {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), giteaIssuesPlugin(), issueStatsPlugin(), dailyLogPlugin()],
+  plugins: [react(), hqApiPlugin(), giteaIssuesPlugin(), issueStatsPlugin(), dailyLogPlugin()],
   server: {
     host: '0.0.0.0',
     hmr: {

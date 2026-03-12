@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
+import { dbg, dbgDiff, startDomObserver, trackRender } from './debug'
 import './App.css'
 import TechTree from './TechTree.jsx'
 import VisibilityToggle from './VisibilityToggle.jsx'
@@ -14,27 +15,106 @@ const STATE_COLORS = {
   meeting: 'var(--purple)',
   starting: 'var(--blue)',
   stopping: 'var(--text-dim)',
+  cooking: 'var(--orange)',
 }
 
+const COLOR_MAP = {
+  red: 'var(--red)',
+  yellow: 'var(--yellow)',
+  green: 'var(--green)',
+  blue: 'var(--blue)',
+  purple: 'var(--purple)',
+  cyan: 'var(--cyan)',
+  orange: 'var(--orange)',
+}
+
+const PRI_ICONS = { high: '\u2757', medium: '\u2013', low: '\u00B7' }
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 }
+
+/* ────────────────────────────────────────────────────────
+ * useStatus — fetches /status.json on interval
+ * Stabilizes pinboard/agents/projects references via
+ * JSON comparison so downstream memos work correctly.
+ * ──────────────────────────────────────────────────────── */
 function useStatus(interval = 3000) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
+  const prevJsonRef = useRef('')
+  const bestKnownRef = useRef({})
 
   useEffect(() => {
+    let active = true
+    dbg('lifecycle', `useStatus effect MOUNT (interval=${interval})`)
+
     const fetchStatus = async () => {
       try {
-        const res = await fetch('/status.json?' + Date.now())
-        if (res.ok) {
-          setData(await res.json())
-          setError(null)
+        const url = '/status.json?' + Date.now()
+        dbg('fetch', `fetching ${url}`)
+        const res = await fetch(url)
+        dbg('fetch', `response: ${res.status} ${res.statusText}`)
+
+        if (!res.ok) {
+          dbg('fetch', `!res.ok — skipping setData`)
+          return
         }
+
+        const text = await res.text()
+        dbg('fetch', `body length: ${text.length} chars`)
+
+        if (!active) {
+          dbg('fetch', `effect no longer active — discarding`)
+          return
+        }
+
+        const parsed = JSON.parse(text)
+        dbg('data', `parsed: ${parsed.agents?.length} agents, ${parsed.projects?.length} projects, ${parsed.pinboard?.length} pinboard`)
+
+        // ── Merge with best-known data ──
+        const best = bestKnownRef.current
+        const merged = { ...parsed }
+
+        if (parsed.pinboard && parsed.pinboard.length > 0) {
+          best.pinboard = parsed.pinboard
+          dbg('data', `pinboard: updated best-known (${parsed.pinboard.length} items)`)
+        } else if (best.pinboard) {
+          merged.pinboard = best.pinboard
+          dbg('data', `pinboard: MISSING from response — using best-known (${best.pinboard.length} items)`)
+        }
+
+        if (parsed.projects && parsed.projects.length > (best.projects?.length || 0)) {
+          best.projects = parsed.projects
+        }
+        if (best.projects && (!parsed.projects || parsed.projects.length < best.projects.length)) {
+          merged.projects = best.projects
+          dbg('data', `projects: using best-known (${best.projects.length} vs ${parsed.projects?.length})`)
+        }
+
+        // Deduplicate: only update state if the MERGED result differs
+        const mergedJson = JSON.stringify(merged)
+        if (mergedJson === prevJsonRef.current) {
+          dbg('fetch', `merged JSON unchanged — skipping setData`)
+          return
+        }
+
+        dbg('fetch', `merged JSON CHANGED — updating state`)
+        prevJsonRef.current = mergedJson
+
+        setData(merged)
+        setError(null)
       } catch (e) {
-        setError(e.message)
+        dbg('fetch', `ERROR: ${e.message}`)
+        if (active) setError(e.message)
       }
     }
+
     fetchStatus()
     const id = setInterval(fetchStatus, interval)
-    return () => clearInterval(id)
+
+    return () => {
+      dbg('lifecycle', `useStatus effect CLEANUP`)
+      active = false
+      clearInterval(id)
+    }
   }, [interval])
 
   return { data, error }
@@ -60,17 +140,24 @@ function useIssueStats(interval = 30000) {
   return stats
 }
 
-function useClock() {
+/* ── Clock — self-contained, doesn't trigger parent re-renders ── */
+function Clock() {
   const [time, setTime] = useState(new Date())
   useEffect(() => {
     const id = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
-  return time
+
+  return (
+    <div className="clock">
+      {time.toLocaleTimeString('en-US', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+      })}
+    </div>
+  )
 }
 
 function getLeadAgent(agents) {
-  // Find the PM agent, or the first working agent, or first agent
   const pm = agents?.find(a => a.agent === 'pm')
   if (pm) return pm
   const working = agents?.find(a => a.state === 'working' && a.alive)
@@ -129,6 +216,291 @@ function ProjectRow({ project, maxIssues }) {
   )
 }
 
+/* ── PinCard ── */
+const PinCard = memo(function PinCard({ note }) {
+  const [expanded, setExpanded] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [verifyResult, setVerifyResult] = useState(note.verify_result || null)
+  const renderCount = trackRender(`PinCard:${note.id}`)
+
+  useEffect(() => {
+    dbg('lifecycle', `PinCard MOUNT: ${note.id} "${note.text.slice(0, 40)}"`)
+    return () => {
+      dbg('lifecycle', `PinCard UNMOUNT: ${note.id} "${note.text.slice(0, 40)}"`)
+    }
+  }, [note.id, note.text])
+
+  // Sync verify_result from props if it changes externally
+  useEffect(() => {
+    if (note.verify_result) setVerifyResult(note.verify_result)
+  }, [note.verify_result])
+
+  const hasDetails = note.details || (note.links && note.links.length > 0) || note.issue || note.code || note.verify
+  const hasExpandable = hasDetails || note.created_at
+
+  const open = useCallback((e) => {
+    e.stopPropagation()
+    if (hasExpandable && !expanded) {
+      dbg('state', `PinCard ${note.id} expanded: true`)
+      setExpanded(true)
+    }
+  }, [hasExpandable, expanded, note.id])
+
+  const close = useCallback((e) => {
+    e.stopPropagation()
+    dbg('state', `PinCard ${note.id} expanded: false`)
+    setExpanded(false)
+  }, [note.id])
+
+  const runVerify = useCallback(async (e) => {
+    e.stopPropagation()
+    if (verifying) return
+    setVerifying(true)
+    setVerifyResult(null)
+    dbg('fetch', `pin-verify: running for ${note.id}`)
+    try {
+      const res = await fetch('/api/pin-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinId: note.id }),
+      })
+      const result = await res.json()
+      dbg('data', `pin-verify result for ${note.id}:`, result)
+      setVerifyResult({
+        passed: result.passed,
+        output: result.output,
+        error: result.error,
+        verified_at: new Date().toISOString(),
+      })
+    } catch (err) {
+      dbg('fetch', `pin-verify ERROR: ${err.message}`)
+      setVerifyResult({ passed: false, error: err.message, verified_at: new Date().toISOString() })
+    } finally {
+      setVerifying(false)
+    }
+  }, [note.id, verifying])
+
+  const issueUrl = note.issue ? (() => {
+    const match = note.issue.match(/^([^#]+)#(\d+)$/)
+    if (!match) return null
+    const [, repo, num] = match
+    return `https://git.wastelandwares.com/tquick/${repo}/issues/${num}`
+  })() : null
+
+  const age = note.created_at ? (() => {
+    const ms = Date.now() - new Date(note.created_at).getTime()
+    const hrs = Math.floor(ms / 3600000)
+    if (hrs < 1) return 'just now'
+    if (hrs < 24) return `${hrs}h ago`
+    const days = Math.floor(hrs / 24)
+    return `${days}d ago`
+  })() : null
+
+  return (
+    <div
+      className={`pin-card ${note.done ? 'done' : ''} ${hasExpandable ? 'clickable' : ''} ${expanded ? 'expanded' : ''}`}
+      style={{ '--pin-color': COLOR_MAP[note.color] || 'var(--yellow)' }}
+      onClick={expanded ? undefined : open}
+      data-pin-id={note.id}
+    >
+      <div className="pin-header" onClick={expanded ? undefined : open}>
+        <span className="pin-priority">{PRI_ICONS[note.priority] || '\u2013'}</span>
+        {note.project && <span className="pin-project">{note.project}</span>}
+        {note.issue && (
+          <a
+            className="pin-issue-badge"
+            href={issueUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+          >
+            {note.issue}
+          </a>
+        )}
+        {expanded ? (
+          <button className="pin-close-btn" onClick={close} title="Close">&times;</button>
+        ) : hasExpandable ? (
+          <span className="pin-expand-icon">{'\u25BE'}</span>
+        ) : null}
+      </div>
+      <div className="pin-text">{note.text}</div>
+      <div className="pin-meta">
+        {note.created_by && <span>{note.created_by}</span>}
+        {age && <span className="pin-age">{age}</span>}
+      </div>
+
+      {expanded && (
+        <div className="pin-details" onClick={e => e.stopPropagation()}>
+          {note.details && <div className="pin-details-text">{note.details}</div>}
+          {note.code && <pre className="pin-code"><code>{note.code}</code></pre>}
+          {note.links && note.links.length > 0 && (
+            <div className="pin-links">
+              {note.links.map((link, i) => (
+                <a key={i} className="pin-link" href={link.url} target="_blank"
+                  rel="noopener noreferrer">
+                  {link.label || link.url}
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* Verify & Complete button — only on pins with a verify command */}
+          {note.verify && !note.done && (
+            <div className="pin-verify-section">
+              <div className="pin-verify-cmd">
+                <span className="pin-verify-label">Test:</span>
+                <code>{note.verify}</code>
+              </div>
+              <button
+                className={`pin-verify-btn ${verifying ? 'running' : ''}`}
+                onClick={runVerify}
+                disabled={verifying}
+              >
+                {verifying ? 'Running...' : 'Verify & Complete'}
+              </button>
+            </div>
+          )}
+
+          {/* Verify result display */}
+          {verifyResult && (
+            <div className={`pin-verify-result ${verifyResult.passed ? 'passed' : 'failed'}`}>
+              <div className="pin-verify-status">
+                {verifyResult.passed ? 'PASSED' : 'FAILED'}
+                {verifyResult.verified_at && (
+                  <span className="pin-verify-time">
+                    {new Date(verifyResult.verified_at).toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+              {verifyResult.output && (
+                <pre className="pin-verify-output">{verifyResult.output}</pre>
+              )}
+              {verifyResult.error && (
+                <pre className="pin-verify-output error">{verifyResult.error}</pre>
+              )}
+            </div>
+          )}
+
+          {note.completed_at && note.done && !verifyResult && (
+            <div className="pin-completed">
+              Completed {new Date(note.completed_at).toLocaleString()}
+              {note.completed_by ? ` by ${note.completed_by}` : ''}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}, (prev, next) => {
+  const same = prev.note.id === next.note.id
+    && prev.note.done === next.note.done
+    && prev.note.text === next.note.text
+    && prev.note.details === next.note.details
+    && prev.note.code === next.note.code
+    && prev.note.issue === next.note.issue
+    && prev.note.verify === next.note.verify
+    && prev.note.updated_at === next.note.updated_at
+    && JSON.stringify(prev.note.verify_result) === JSON.stringify(next.note.verify_result)
+  if (!same) {
+    dbg('render', `PinCard memo: ${prev.note.id} WILL re-render (data changed)`)
+  }
+  return same
+})
+
+/* ── PinboardSection ── */
+const PinboardSection = memo(function PinboardSection({ notes }) {
+  const renderCount = trackRender('PinboardSection')
+  const prevNotesRef = useRef(null)
+
+  useEffect(() => {
+    dbg('lifecycle', 'PinboardSection MOUNT')
+    setTimeout(() => startDomObserver('.pin-grid'), 100)
+    return () => dbg('lifecycle', 'PinboardSection UNMOUNT')
+  }, [])
+
+  useEffect(() => {
+    if (prevNotesRef.current !== null) {
+      dbgDiff('data', 'PinboardSection notes', prevNotesRef.current, notes)
+    }
+    prevNotesRef.current = notes
+  }, [notes])
+
+  const safeNotes = notes || []
+  const sorted = [...safeNotes].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1
+    return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
+  })
+
+  dbg('render', `PinboardSection render #${renderCount}: ${sorted.length} notes`)
+
+  return (
+    <div className="pinboard-section">
+      <div className="section-label">Pinboard</div>
+      <div className="pin-grid">
+        {sorted.length === 0 ? (
+          <div className="pin-empty">No pinned items</div>
+        ) : (
+          sorted.map(note => (
+            <PinCard key={note.id} note={note} />
+          ))
+        )}
+      </div>
+    </div>
+  )
+}, (prev, next) => {
+  if (!prev.notes && !next.notes) return true
+  if (!prev.notes || !next.notes) {
+    dbg('render', `PinboardSection memo: notes null mismatch — WILL re-render`)
+    return false
+  }
+  if (prev.notes.length !== next.notes.length) {
+    dbg('render', `PinboardSection memo: length changed ${prev.notes.length} -> ${next.notes.length} — WILL re-render`)
+    return false
+  }
+  if (prev.notes === next.notes) return true
+  for (let i = 0; i < prev.notes.length; i++) {
+    if (prev.notes[i].id !== next.notes[i].id) return false
+    if (prev.notes[i].done !== next.notes[i].done) return false
+    if (prev.notes[i].text !== next.notes[i].text) return false
+    if (prev.notes[i].updated_at !== next.notes[i].updated_at) return false
+  }
+  return true
+})
+
+/* ── ObjectivesLog ── */
+const ObjectivesLog = memo(function ObjectivesLog({ objectives, currentTask }) {
+  const MAX_VISIBLE = 5
+  const history = (objectives || [])
+    .filter(o => o.text !== currentTask)
+    .slice(-MAX_VISIBLE)
+    .reverse()
+
+  const formatTime = (ts) => {
+    if (!ts) return ''
+    const d = new Date(ts)
+    return d.toLocaleString('en-US', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    })
+  }
+
+  return (
+    <div className="objectives-log">
+      {currentTask && (
+        <div className="objective-item active">
+          <span className="objective-text gradient-text">{currentTask}</span>
+        </div>
+      )}
+      {history.map((obj, i) => (
+        <div key={obj.timestamp + i} className="objective-item past">
+          <span className="objective-time">[{formatTime(obj.timestamp)}]</span>
+          <span className="objective-text">{obj.text}</span>
+        </div>
+      ))}
+    </div>
+  )
+})
+
 function SummaryBar({ agents, issueStats }) {
   const working = agents?.filter(a => a.state === 'working' && a.alive).length || 0
   const idle = agents?.filter(a => a.state === 'idle').length || 0
@@ -161,11 +533,11 @@ function SummaryBar({ agents, issueStats }) {
       <div className="summary-group">
         <div className="summary-stat">
           <div className="dot blue" />
-          <span className="value">{issueStats?.open ?? '–'}</span> open
+          <span className="value">{issueStats?.open ?? '\u2013'}</span> open
         </div>
         <div className="summary-stat">
           <div className="dot cyan" />
-          <span className="value">{issueStats?.inProgress ?? '–'}</span> in progress
+          <span className="value">{issueStats?.inProgress ?? '\u2013'}</span> in progress
         </div>
         {(issueStats?.stalled ?? 0) > 0 && (
           <div className="summary-stat">
@@ -175,7 +547,7 @@ function SummaryBar({ agents, issueStats }) {
         )}
         <div className="summary-stat">
           <div className="dot green" />
-          <span className="value">{issueStats?.recentlyClosed ?? '–'}</span> closed <span className="stat-detail">48h</span>
+          <span className="value">{issueStats?.recentlyClosed ?? '\u2013'}</span> closed <span className="stat-detail">48h</span>
         </div>
       </div>
     </div>
@@ -189,21 +561,21 @@ function TabBar({ activeTab, onTabChange }) {
         className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
         onClick={() => onTabChange('dashboard')}
       >
-        <span className="tab-icon">◉</span>
+        <span className="tab-icon">{'\u25C9'}</span>
         Dashboard
       </button>
       <button
         className={`tab-btn ${activeTab === 'techtree' ? 'active' : ''}`}
         onClick={() => onTabChange('techtree')}
       >
-        <span className="tab-icon">⬡</span>
+        <span className="tab-icon">{'\u2B21'}</span>
         Tech Tree
       </button>
       <button
         className={`tab-btn ${activeTab === 'dailylog' ? 'active' : ''}`}
         onClick={() => onTabChange('dailylog')}
       >
-        <span className="tab-icon">☰</span>
+        <span className="tab-icon">{'\u2630'}</span>
         Daily Log
       </button>
     </div>
@@ -213,12 +585,31 @@ function TabBar({ activeTab, onTabChange }) {
 export default function App() {
   const { data, error } = useStatus(3000)
   const issueStats = useIssueStats(30000)
-  const clock = useClock()
   const [activeTab, setActiveTab] = useState('dashboard')
+  const renderCount = trackRender('App')
+  const prevDataRef = useRef(null)
+
+  useEffect(() => {
+    dbg('lifecycle', 'App MOUNT')
+    return () => dbg('lifecycle', 'App UNMOUNT')
+  }, [])
+
+  useEffect(() => {
+    if (prevDataRef.current !== null) {
+      dbg('data', `App data changed (render #${renderCount})`)
+      dbgDiff('data', 'agents', prevDataRef.current?.agents, data?.agents)
+      dbgDiff('data', 'projects', prevDataRef.current?.projects, data?.projects)
+      dbgDiff('data', 'pinboard', prevDataRef.current?.pinboard, data?.pinboard)
+    } else {
+      dbg('data', `App initial data: ${data ? 'received' : 'null'}`)
+    }
+    prevDataRef.current = data
+  }, [data])
 
   const agents = data?.agents || []
   const projects = data?.projects || []
   const pinboard = data?.pinboard || []
+  const objectives = data?.objectives || []
   const lead = getLeadAgent(agents)
   const maxIssues = Math.max(...projects.map(p => p.open), 1)
 
@@ -227,36 +618,36 @@ export default function App() {
     items: agents,
     isHidden: isAgentStale,
   })
-  const pinVis = useVisibilityToggle('hq-show-done-pins', {
-    items: pinboard,
-    isHidden: isPinDone,
-  })
 
-  const timeStr = clock.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
+  const cookMode = data?.cook_mode || { active: false }
+  const stateLabel = cookMode.active ? 'COOKING' : (lead.state || 'idle').toUpperCase()
+  const beaconState = cookMode.active ? 'cooking' : (lead.state || 'idle')
 
-  const stateLabel = (lead.state || 'idle').toUpperCase()
+  dbg('render', `App render #${renderCount}: data=${!!data}, agents=${agents.length}, pinboard=${pinboard.length}, cooking=${cookMode.active}`)
 
   return (
-    <div className="hq">
+    <div className={`hq ${cookMode.active ? 'cook-mode-active' : ''}`}>
       {/* ── Big Status Header ── */}
       <div className="hq-header">
-        <StatusBeacon state={lead.state || 'idle'} />
+        <StatusBeacon state={beaconState} />
         <div className="hq-title">
-          <div
-            className="state-label"
-            style={{ color: STATE_COLORS[lead.state] || 'var(--text-dim)' }}
-          >
+          <div className="state-label"
+            style={{ color: cookMode.active ? 'var(--orange)' : (STATE_COLORS[lead.state] || 'var(--text-dim)') }}>
             {stateLabel}
           </div>
-          <div className="task-label">{lead.task || 'Standing by'}</div>
+          {cookMode.active && (
+            <div className="cook-badge">
+              <span className="cook-badge-icon">&#x1F468;&#x200D;&#x1F373;</span>
+              <span className="cook-badge-task">{cookMode.task || 'Autonomous mode'}</span>
+              {cookMode.messages_queued > 0 && (
+                <span className="cook-badge-queue">{cookMode.messages_queued} queued</span>
+              )}
+            </div>
+          )}
+          <ObjectivesLog objectives={objectives} currentTask={lead.task || 'Standing by'} />
         </div>
         <div className="hq-meta">
-          <div className="clock">{timeStr}</div>
+          <Clock />
           <div className="branding">
             Wasteland HQ
             <span className="pulse-dot" />
@@ -295,33 +686,7 @@ export default function App() {
           </div>
 
           {/* ── Pinboard ── */}
-          {pinboard.length > 0 && (
-            <div className="pinboard-section">
-              <div className="section-label">
-                Pinboard
-                <VisibilityToggle
-                  showAll={pinVis.showAll}
-                  hiddenCount={pinVis.hiddenCount}
-                  onToggle={pinVis.toggle}
-                  hideLabel={`Hide done (${pinVis.hiddenCount})`}
-                  showLabel={`Show all (+${pinVis.hiddenCount} done)`}
-                />
-              </div>
-              <div className="pin-grid">
-                {pinVis.visible.map(note => (
-                  <div key={note.id} className={`pin-card ${note.done ? 'done' : ''} ${note.priority === 'urgent' ? 'urgent' : ''}`}>
-                    <div className="pin-text">{note.text}</div>
-                    {note.project && <div className="pin-project">{note.project}</div>}
-                    {note.tags?.length > 0 && (
-                      <div className="pin-tags">
-                        {note.tags.map(t => <span key={t} className="pin-tag">{t}</span>)}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <PinboardSection notes={pinboard} />
 
           {/* ── Projects ── */}
           <div className="projects-section">

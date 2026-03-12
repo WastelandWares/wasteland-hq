@@ -80,6 +80,78 @@
   font-weight: 300;
 }
 
+/* ── Objectives Log ────────────────────── */
+.objectives-log {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.objective-item {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.objective-item.active {
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.objective-item.past {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+
+.objective-item.past:nth-child(n+4) {
+  opacity: 0.35;
+}
+
+.objective-time {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.objective-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Animated gradient text for active objective ── */
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-text {
+  background: linear-gradient(
+    90deg,
+    var(--green),
+    var(--cyan),
+    var(--blue),
+    var(--purple),
+    var(--green)
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-shift 6s ease-in-out infinite;
+  font-weight: 500;
+  white-space: normal;
+}
+
 .hq-meta {
   text-align: right;
   flex-shrink: 0;
@@ -182,7 +254,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   padding: 16px 18px;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
   position: relative;
   overflow: hidden;
 }
@@ -262,71 +334,364 @@
 
 .pin-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.pin-empty {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  padding: 16px;
+  font-style: italic;
 }
 
 .pin-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 12px 14px;
-  transition: all 0.2s ease;
+  border-radius: 10px;
+  padding: 14px 16px;
   position: relative;
+  overflow: hidden;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  border-top: 3px solid var(--pin-color, var(--yellow));
 }
 
 .pin-card:hover {
   background: var(--bg-card-hover);
   border-color: var(--border-accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .pin-card.done {
-  opacity: 0.45;
-  border-style: dashed;
-}
-
-.pin-card.urgent {
-  border-left: 3px solid var(--red);
-}
-
-.pin-text {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  line-height: 1.4;
+  opacity: 0.4;
+  border-top-color: var(--text-dim);
 }
 
 .pin-card.done .pin-text {
   text-decoration: line-through;
-  color: var(--text-dim);
+}
+
+.pin-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pin-priority {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--pin-color, var(--yellow));
 }
 
 .pin-project {
   font-size: 0.65rem;
   color: var(--cyan);
-  margin-top: 6px;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--bg-deep);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.pin-text {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.pin-meta {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  display: flex;
+  justify-content: space-between;
+}
+
+.pin-age {
   opacity: 0.7;
 }
 
-.pin-tags {
+/* ── Clickable / Expandable ─────────────── */
+.pin-card.clickable {
+  cursor: pointer;
+}
+
+.pin-card.clickable:hover .pin-expand-icon {
+  opacity: 1;
+}
+
+.pin-expand-icon {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+
+.pin-close-btn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
   display: flex;
-  gap: 4px;
-  margin-top: 6px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.pin-close-btn:hover {
+  background: var(--red);
+  color: var(--bg-deep);
+  border-color: var(--red);
+}
+
+.pin-issue-badge {
+  font-size: 0.6rem;
+  color: var(--green);
+  background: var(--green-dim);
+  padding: 1px 7px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.pin-issue-badge:hover {
+  background: var(--green);
+  color: var(--bg-deep);
+}
+
+/* ── Expanded Details Panel ─────────────── */
+.pin-details {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pin-details-text {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.pin-code {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--cyan);
+  overflow-x: auto;
+  margin: 0;
+  font-family: var(--font-body);
+  white-space: pre;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.pin-code code {
+  font-family: inherit;
+}
+
+.pin-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pin-link {
+  font-size: 0.65rem;
+  color: var(--blue);
+  background: var(--bg-deep);
+  padding: 3px 10px;
+  border-radius: 4px;
+  text-decoration: none;
+  border: 1px solid var(--border-subtle);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.pin-link:hover {
+  background: var(--blue);
+  color: var(--bg-deep);
+  border-color: var(--blue);
+}
+
+.pin-completed {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* ── Verify & Complete ─────────────────── */
+.pin-verify-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.pin-tag {
-  font-size: 0.6rem;
+.pin-verify-cmd {
+  font-size: 0.68rem;
   color: var(--text-dim);
-  padding: 1px 6px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
 }
 
-.pin-empty {
+.pin-verify-label {
   color: var(--text-dim);
-  font-size: 0.8rem;
-  font-style: italic;
-  padding: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.pin-verify-cmd code {
+  color: var(--cyan);
+  background: var(--bg-deep);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pin-verify-btn {
+  background: var(--green);
+  color: var(--bg-deep);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.pin-verify-btn:hover {
+  background: var(--green);
+  filter: brightness(1.2);
+  transform: translateY(-1px);
+}
+
+.pin-verify-btn:active {
+  transform: translateY(0);
+}
+
+.pin-verify-btn.running {
+  opacity: 0.6;
+  cursor: wait;
+  animation: pulse-glow 1s ease-in-out infinite;
+}
+
+.pin-verify-btn:disabled {
+  pointer-events: none;
+}
+
+/* ── Verify Result ─────────────────────── */
+.pin-verify-result {
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 0.7rem;
+}
+
+.pin-verify-result.passed {
+  background: rgba(0, 232, 143, 0.08);
+  border: 1px solid rgba(0, 232, 143, 0.25);
+}
+
+.pin-verify-result.failed {
+  background: rgba(255, 92, 92, 0.08);
+  border: 1px solid rgba(255, 92, 92, 0.25);
+}
+
+.pin-verify-status {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.pin-verify-result.passed .pin-verify-status {
+  color: var(--green);
+}
+
+.pin-verify-result.failed .pin-verify-status {
+  color: var(--red);
+}
+
+.pin-verify-time {
+  font-weight: 400;
+  font-size: 0.6rem;
+  color: var(--text-dim);
+}
+
+.pin-verify-output {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 0.65rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+  max-height: 150px;
+  overflow-y: auto;
+  font-family: var(--font-body);
+  user-select: text;
+  cursor: text;
+}
+
+.pin-verify-output.error {
+  color: var(--red);
+}
+
+/* Expanded card gets more visual weight + allows text selection */
+.pin-card.expanded {
+  border-color: var(--border-accent);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  cursor: default;
+}
+
+.pin-card.expanded .pin-details {
+  user-select: text;
+  cursor: text;
+}
+
+.pin-card.expanded .pin-code {
+  user-select: all;
+  cursor: text;
+}
+
+/* Grid: expanded cards can span full width on small grids */
+@media (min-width: 800px) {
+  .pin-card.expanded {
+    grid-column: span 2;
+  }
 }
 
 /* ── Projects ───────────────────────────── */
@@ -479,4 +844,55 @@
   font-size: 0.65rem;
   color: var(--text-dim);
   margin-top: 2px;
+}
+
+/* ── Cook Mode ─────────────────────────── */
+.status-beacon.cooking .core {
+  background: var(--orange);
+  animation: cook-flame 1.5s ease-in-out infinite;
+}
+
+.status-beacon.cooking .ring {
+  border-color: var(--orange);
+  animation: beacon 1.5s ease-in-out infinite;
+}
+
+.status-beacon.cooking .ring-outer {
+  border-color: var(--orange);
+}
+
+@keyframes cook-flame {
+  0%, 100% { background: var(--orange); box-shadow: 0 0 12px var(--orange); }
+  50% { background: var(--red); box-shadow: 0 0 20px var(--red); }
+}
+
+.cook-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 4px 12px;
+  background: rgba(255, 153, 0, 0.1);
+  border: 1px solid rgba(255, 153, 0, 0.3);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  width: fit-content;
+}
+
+.cook-badge-icon {
+  font-size: 1rem;
+}
+
+.cook-badge-task {
+  color: var(--orange);
+  font-weight: 500;
+}
+
+.cook-badge-queue {
+  color: var(--yellow);
+  font-size: 0.7rem;
+  background: rgba(255, 230, 0, 0.15);
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-weight: 600;
 }
