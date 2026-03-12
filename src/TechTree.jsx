@@ -1,22 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import dagre from '@dagrejs/dagre'
+import { REPO_COLORS, REPO_COLORS_DIM } from './config/repos.js'
 import './TechTree.css'
 
-// ── Project colors ──────────────────────────
-const PROJECT_COLORS = {
-  'dungeon-crawler': '#00e88f',
-  'wasteland-infra': '#4ea8ff',
-  'claude-gate': '#a78bfa',
-  'wasteland-hq': '#22d3ee',
-  'dnd-tools': '#ffc857',
-  'meeting-scribe': '#fb923c',
-  'wasteland-orchestrator': '#ff5c5c',
-  'neuroscript-rs': '#e879f9',
-}
-
-const PROJECT_COLOR_DIM = Object.fromEntries(
-  Object.entries(PROJECT_COLORS).map(([k, v]) => [k, v + '30'])
-)
+// ── Project colors (from centralized config) ─
+const PROJECT_COLORS = REPO_COLORS
+const PROJECT_COLOR_DIM = REPO_COLORS_DIM
 
 // ── Complexity shapes ───────────────────────
 // trivial = small circle, small = circle, medium = rounded rect, large = rect, epic = diamond
