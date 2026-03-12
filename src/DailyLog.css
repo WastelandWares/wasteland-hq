@@ -1,0 +1,403 @@
+/* ── Daily Log Container ─────────────────── */
+.daily-log-container {
+  animation: slide-up 0.4s ease-out;
+  padding-bottom: 40px;
+}
+
+/* ── Header ──────────────────────────────── */
+.daily-log-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.daily-log-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+.daily-log-count {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+
+/* ── Day Cards (list view) ───────────────── */
+.daily-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.daily-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.daily-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--cyan);
+  opacity: 0.4;
+  border-radius: 10px 0 0 10px;
+  transition: opacity 0.2s ease;
+}
+
+.daily-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-accent);
+  transform: translateX(4px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.daily-card:hover::before {
+  opacity: 1;
+}
+
+.daily-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.daily-card-date {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.daily-card-ago {
+  font-size: 0.7rem;
+  color: var(--cyan);
+  opacity: 0.7;
+}
+
+.daily-card-prose {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 10px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.daily-card-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.daily-card-stat {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.stat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stat-dot.commits { background: var(--green); }
+.stat-dot.merged { background: var(--purple); }
+.stat-dot.highlights { background: var(--yellow); }
+.stat-dot.issues { background: var(--blue); }
+
+/* ── Detail View ─────────────────────────── */
+.daily-detail {
+  animation: slide-up 0.3s ease-out;
+}
+
+.daily-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 20px;
+}
+
+.daily-back-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-accent);
+  color: var(--text-primary);
+}
+
+.daily-detail-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.daily-detail-date {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.daily-detail-ago {
+  font-size: 0.8rem;
+  color: var(--cyan);
+  opacity: 0.7;
+}
+
+/* ── Sections ────────────────────────────── */
+.daily-section {
+  margin-bottom: 28px;
+}
+
+.daily-section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.daily-prose {
+  font-size: 0.92rem;
+  color: var(--text-primary);
+  line-height: 1.7;
+  margin: 0;
+  padding: 14px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  border-left: 3px solid var(--cyan);
+}
+
+/* ── Highlights ──────────────────────────── */
+.daily-highlights {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.daily-highlight-item {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  position: relative;
+  padding-left: 24px;
+  line-height: 1.4;
+}
+
+.daily-highlight-item::before {
+  content: '\25B8';
+  position: absolute;
+  left: 10px;
+  color: var(--green);
+  font-size: 0.75rem;
+}
+
+/* ── Issues Grid ─────────────────────────── */
+.daily-issues-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.daily-issue-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.daily-issue-repo {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--cyan);
+  margin-bottom: 4px;
+}
+
+.daily-issue-count {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.daily-issue-notable {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.daily-issue-notable li {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Notes ────────────────────────────────── */
+.daily-notes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.daily-note-item {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  border-left: 3px solid var(--yellow);
+  line-height: 1.4;
+}
+
+/* ── Metrics Bar ─────────────────────────── */
+.daily-metrics {
+  display: flex;
+  gap: 24px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.daily-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.daily-metric-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.daily-metric-label {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ── Generated timestamp ─────────────────── */
+.daily-generated {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  opacity: 0.5;
+  margin-top: 20px;
+  text-align: right;
+}
+
+/* ── Empty / Loading / Error ─────────────── */
+.daily-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 300px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.daily-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 300px;
+  color: var(--red);
+  font-size: 0.85rem;
+}
+
+.daily-error-hint {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.daily-error-hint code {
+  color: var(--cyan);
+  background: var(--bg-deep);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+}
+
+.daily-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.daily-empty-hint {
+  margin-top: 12px;
+  font-size: 0.75rem;
+}
+
+.daily-empty-hint code {
+  color: var(--cyan);
+  background: var(--bg-deep);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+}
+
+/* ── Animation ───────────────────────────── */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
