@@ -4,6 +4,8 @@ import { readFileSync } from 'fs'
 import fs from 'fs'
 import path from 'path'
 import { join } from 'path'
+import fs from 'fs'
+import path from 'path'
 import { execSync } from 'child_process'
 import { GITEA_URL, GITEA_ORG, REPO_NAMES } from './src/config/repos.js'
 
@@ -282,6 +284,7 @@ function dailyLogPlugin() {
   return {
     name: 'daily-log-api',
     configureServer(server) {
+      // GET /api/daily-log — list available daily summaries
       server.middlewares.use('/api/daily-log', (req, res, next) => {
         const url = new URL(req.url, 'http://localhost')
 
@@ -324,7 +327,7 @@ function serveDailyList(res) {
       }
     }
 
-    // Fallback to briefing files if no summaries
+    // If no summaries, try to create entries from briefing files
     if (entries.length === 0 && fs.existsSync(BRIEFINGS_DIR)) {
       const briefings = fs.readdirSync(BRIEFINGS_DIR)
         .filter(f => f.endsWith('.md'))
@@ -337,6 +340,7 @@ function serveDailyList(res) {
         const briefingPath = path.join(BRIEFINGS_DIR, file)
         try {
           const content = fs.readFileSync(briefingPath, 'utf-8')
+          // Extract a summary from the briefing
           const entry = parseBriefingToSummary(date, content)
           if (entry) entries.push(entry)
         } catch {
@@ -356,6 +360,7 @@ function serveDailyList(res) {
 }
 
 function serveDailySummary(date, res) {
+  // Try summary file first
   const summaryPath = path.join(SUMMARIES_DIR, `${date}.json`)
   if (fs.existsSync(summaryPath)) {
     try {
@@ -369,6 +374,7 @@ function serveDailySummary(date, res) {
     }
   }
 
+  // Fallback to briefing file
   const briefingPath = path.join(BRIEFINGS_DIR, `${date}.md`)
   if (fs.existsSync(briefingPath)) {
     try {
@@ -415,18 +421,34 @@ function parseBriefingToSummary(date, markdown) {
   let inIssues = false
   let currentRepo = null
   for (const line of lines) {
-    if (line.includes('Open Issues (Gitea)')) { inIssues = true; continue }
+    if (line.includes('Open Issues (Gitea)')) {
+      inIssues = true
+      continue
+    }
     if (inIssues && line.startsWith('---')) break
     if (inIssues) {
       const repoMatch = line.match(/^\*\*([^*]+)\*\*\s*\((\d+)\s+open\)/)
-      if (repoMatch) { currentRepo = repoMatch[1]; open_issues[currentRepo] = { count: parseInt(repoMatch[2]), notable: [] }; continue }
-      if (currentRepo && line.startsWith('- #')) open_issues[currentRepo].notable.push(line.slice(2).trim())
+      if (repoMatch) {
+        currentRepo = repoMatch[1]
+        open_issues[currentRepo] = { count: parseInt(repoMatch[2]), notable: [] }
+        continue
+      }
+      if (currentRepo && line.startsWith('- #')) {
+        open_issues[currentRepo].notable.push(line.slice(2).trim())
+      }
     }
   }
 
+  // Extract metadata
   const genMatch = markdown.match(/Generated:\s*(.+)/)
+  const sessMatch = markdown.match(/Sessions:\s*(\d+)/)
+
   if (!prose && highlights.length === 0) return null
-  if (prose.length > 300) prose = prose.slice(0, 297) + '...'
+
+  // Truncate prose for card preview
+  if (prose.length > 300) {
+    prose = prose.slice(0, 297) + '...'
+  }
 
   return {
     date,
@@ -435,7 +457,12 @@ function parseBriefingToSummary(date, markdown) {
     highlights,
     open_issues,
     notes: [],
-    metrics: { commits: 0, prs_merged: 0, issues_created: 0, issues_closed: 0 },
+    metrics: {
+      commits: 0,
+      prs_merged: 0,
+      issues_created: 0,
+      issues_closed: 0,
+    },
   }
 }
 
