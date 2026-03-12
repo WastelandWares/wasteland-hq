@@ -1,67 +1,66 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { readFileSync } from 'fs'
-import fs from 'fs'
-import path from 'path'
-import { join } from 'path'
 import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
-import { GITEA_URL, GITEA_ORG, REPO_NAMES } from './src/config/repos.js'
+import { GITHUB_URL, GITHUB_ORG, REPO_NAMES } from './src/config/repos.js'
 
 const STATUS_PATH = path.join(process.env.HOME, '.claude', 'hq-status.json')
 const PINBOARD_PATH = path.join(process.env.HOME, '.claude', 'pinboard.json')
 const SUMMARIES_DIR = path.join(process.env.HOME, '.claude', 'daily-summaries')
 const BRIEFINGS_DIR = path.join(process.env.HOME, '.claude', 'briefings')
 
-function getGiteaToken() {
+function getGitHubToken() {
   try {
-    return process.env.GITEA_TOKEN || readFileSync(
-      join(process.env.HOME, '.claude', '.gitea-token'), 'utf-8'
-    ).trim()
+    // Prefer env var, fall back to gh CLI auth
+    if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN
+    return execSync('gh auth token', { encoding: 'utf-8', timeout: 5000 }).trim()
   } catch {
     return ''
   }
 }
 
-function giteaIssuesPlugin() {
+function githubIssuesPlugin() {
   return {
-    name: 'gitea-issues-proxy',
+    name: 'github-issues-proxy',
     configureServer(server) {
       server.middlewares.use('/api/issues', async (req, res) => {
-        const token = getGiteaToken()
+        const token = getGitHubToken()
         const headers = {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `token ${token}` } : {}),
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'wasteland-hq',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         }
 
         try {
           const allIssues = []
           for (const repo of REPO_NAMES) {
             try {
-              const url = `${GITEA_URL}/api/v1/repos/${GITEA_ORG}/${repo}/issues?state=open&type=issues&limit=50`
+              const url = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=open&per_page=100`
               const response = await fetch(url, { headers })
               if (response.ok) {
                 const issues = await response.json()
                 allIssues.push(
-                  ...issues.map((issue) => ({
-                    id: issue.id,
-                    number: issue.number,
-                    title: issue.title,
-                    body: issue.body || '',
-                    state: issue.state,
-                    repo: repo,
-                    url: `${GITEA_URL}/${GITEA_ORG}/${repo}/issues/${issue.number}`,
-                    labels: (issue.labels || []).map((l) => ({
-                      name: l.name,
-                      color: l.color,
-                    })),
-                    assignees: (issue.assignees || []).map((a) => a.login),
-                    milestone: issue.milestone?.title || null,
-                    created_at: issue.created_at,
-                    updated_at: issue.updated_at,
-                    pull_request: issue.pull_request || null,
-                  }))
+                  // GitHub includes PRs in the issues endpoint; filter them out
+                  ...issues
+                    .filter((issue) => !issue.pull_request)
+                    .map((issue) => ({
+                      id: issue.id,
+                      number: issue.number,
+                      title: issue.title,
+                      body: issue.body || '',
+                      state: issue.state,
+                      repo: repo,
+                      url: issue.html_url,
+                      labels: (issue.labels || []).map((l) => ({
+                        name: l.name,
+                        color: l.color,
+                      })),
+                      assignees: (issue.assignees || []).map((a) => a.login),
+                      milestone: issue.milestone?.title || null,
+                      created_at: issue.created_at,
+                      updated_at: issue.updated_at,
+                    }))
                 )
               }
             } catch {
@@ -85,10 +84,11 @@ function issueStatsPlugin() {
     name: 'issue-stats-proxy',
     configureServer(server) {
       server.middlewares.use('/api/issue-stats', async (req, res) => {
-        const token = getGiteaToken()
+        const token = getGitHubToken()
         const headers = {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `token ${token}` } : {}),
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'wasteland-hq',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         }
 
         try {
@@ -100,20 +100,24 @@ function issueStatsPlugin() {
 
           for (const repo of REPO_NAMES) {
             try {
-              // Fetch open issues
-              const openUrl = `${GITEA_URL}/api/v1/repos/${GITEA_ORG}/${repo}/issues?state=open&type=issues&limit=50`
+              // Fetch open issues (GitHub includes PRs — filter them out)
+              const openUrl = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=open&per_page=100`
               const openRes = await fetch(openUrl, { headers })
               if (openRes.ok) {
                 const issues = await openRes.json()
-                openIssues.push(...issues.map(i => ({ ...i, repo })))
+                openIssues.push(
+                  ...issues.filter(i => !i.pull_request).map(i => ({ ...i, repo }))
+                )
               }
 
-              // Fetch recently closed issues (sorted by updated_at desc)
-              const closedUrl = `${GITEA_URL}/api/v1/repos/${GITEA_ORG}/${repo}/issues?state=closed&type=issues&limit=20&sort=updated&direction=desc`
+              // Fetch recently closed issues (sorted by updated desc)
+              const closedUrl = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=closed&per_page=20&sort=updated&direction=desc`
               const closedRes = await fetch(closedUrl, { headers })
               if (closedRes.ok) {
                 const issues = await closedRes.json()
-                closedIssues.push(...issues.map(i => ({ ...i, repo })))
+                closedIssues.push(
+                  ...issues.filter(i => !i.pull_request).map(i => ({ ...i, repo }))
+                )
               }
             } catch {
               // Skip repos that fail
@@ -421,7 +425,7 @@ function parseBriefingToSummary(date, markdown) {
   let inIssues = false
   let currentRepo = null
   for (const line of lines) {
-    if (line.includes('Open Issues (Gitea)')) {
+    if (line.includes('Open Issues')) {
       inIssues = true
       continue
     }
@@ -468,7 +472,7 @@ function parseBriefingToSummary(date, markdown) {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), hqApiPlugin(), giteaIssuesPlugin(), issueStatsPlugin(), dailyLogPlugin()],
+  plugins: [react(), hqApiPlugin(), githubIssuesPlugin(), issueStatsPlugin(), dailyLogPlugin()],
   server: {
     host: '0.0.0.0',
     hmr: {
