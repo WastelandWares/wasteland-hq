@@ -7,8 +7,8 @@
  * To add a new repo: add an entry to REPOS below. That's it.
  */
 
-export const GITEA_URL = 'http://localhost:3003'
-export const GITEA_ORG = 'tquick'
+export const GITHUB_URL = 'https://api.github.com'
+export const GITHUB_ORG = 'severeon'
 
 /**
  * Tracked repositories with display metadata.
