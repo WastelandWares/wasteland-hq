@@ -10,6 +10,22 @@ const PINBOARD_PATH = path.join(process.env.HOME, '.claude', 'pinboard.json')
 const SUMMARIES_DIR = path.join(process.env.HOME, '.claude', 'daily-summaries')
 const BRIEFINGS_DIR = path.join(process.env.HOME, '.claude', 'briefings')
 
+// Cache for GitHub API responses (2-minute TTL)
+let githubApiCache = {}
+const CACHE_TTL = 2 * 60 * 1000 // 2 minutes
+
+function getCachedGitHubData(cacheKey) {
+  const cached = githubApiCache[cacheKey]
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data
+  }
+  return null
+}
+
+function setCachedGitHubData(cacheKey, data) {
+  githubApiCache[cacheKey] = { data, timestamp: Date.now() }
+}
+
 function getGitHubToken() {
   try {
     // Prefer env var, fall back to gh CLI auth
@@ -33,41 +49,48 @@ function githubIssuesPlugin() {
         }
 
         try {
-          const allIssues = []
-          const results = await Promise.all(
-            REPO_NAMES.map(async (repo) => {
-              try {
-                const url = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=open&per_page=100`
-                const response = await fetch(url, { headers })
-                if (response.ok) {
-                  const issues = await response.json()
-                  return issues
-                    .filter((issue) => !issue.pull_request)
-                    .map((issue) => ({
-                      id: issue.id,
-                      number: issue.number,
-                      title: issue.title,
-                      body: issue.body || '',
-                      state: issue.state,
-                      repo: repo,
-                      url: issue.html_url,
-                      labels: (issue.labels || []).map((l) => ({
-                        name: l.name,
-                        color: l.color,
-                      })),
-                      assignees: (issue.assignees || []).map((a) => a.login),
-                      milestone: issue.milestone?.title || null,
-                      created_at: issue.created_at,
-                      updated_at: issue.updated_at,
-                    }))
+          // Try to get open issues from cache first
+          const cacheKey = 'open-issues'
+          let allIssues = getCachedGitHubData(cacheKey)
+
+          if (!allIssues) {
+            allIssues = []
+            const results = await Promise.all(
+              REPO_NAMES.map(async (repo) => {
+                try {
+                  const url = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=open&per_page=100`
+                  const response = await fetch(url, { headers })
+                  if (response.ok) {
+                    const issues = await response.json()
+                    return issues
+                      .filter((issue) => !issue.pull_request)
+                      .map((issue) => ({
+                        id: issue.id,
+                        number: issue.number,
+                        title: issue.title,
+                        body: issue.body || '',
+                        state: issue.state,
+                        repo: repo,
+                        url: issue.html_url,
+                        labels: (issue.labels || []).map((l) => ({
+                          name: l.name,
+                          color: l.color,
+                        })),
+                        assignees: (issue.assignees || []).map((a) => a.login),
+                        milestone: issue.milestone?.title || null,
+                        created_at: issue.created_at,
+                        updated_at: issue.updated_at,
+                      }))
+                  }
+                } catch {
+                  // Skip repos that fail (might not exist)
                 }
-              } catch {
-                // Skip repos that fail (might not exist)
-              }
-              return []
-            })
-          )
-          allIssues.push(...results.flat())
+                return []
+              })
+            )
+            allIssues.push(...results.flat())
+            setCachedGitHubData(cacheKey, allIssues)
+          }
 
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ issues: allIssues, timestamp: new Date().toISOString() }))
@@ -97,39 +120,55 @@ function issueStatsPlugin() {
           const RECENTLY_CLOSED_HOURS = 48
           const now = Date.now()
 
-          const results = await Promise.all(
-            REPO_NAMES.map(async (repo) => {
-              const openIssues = []
-              const closedIssues = []
-              try {
-                // Fetch open issues (GitHub includes PRs — filter them out)
-                const openUrl = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=open&per_page=100`
-                const openRes = await fetch(openUrl, { headers })
-                if (openRes.ok) {
-                  const issues = await openRes.json()
-                  openIssues.push(
-                    ...issues.filter(i => !i.pull_request).map(i => ({ ...i, repo }))
-                  )
-                }
+          // Get open issues from cache (shared with githubIssuesPlugin)
+          let cachedOpenIssues = getCachedGitHubData('open-issues')
+          let openIssues = []
 
-                // Fetch recently closed issues (sorted by updated desc)
+          if (cachedOpenIssues) {
+            // Transform cached data to format expected by stats
+            openIssues = cachedOpenIssues.map(i => ({
+              ...i,
+              repo: i.repo,
+              updated_at: i.updated_at,
+            }))
+          } else {
+            // Fallback: fetch open issues if not in cache
+            const results = await Promise.all(
+              REPO_NAMES.map(async (repo) => {
+                try {
+                  const openUrl = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=open&per_page=100`
+                  const openRes = await fetch(openUrl, { headers })
+                  if (openRes.ok) {
+                    const issues = await openRes.json()
+                    return issues.filter(i => !i.pull_request).map(i => ({ ...i, repo }))
+                  }
+                } catch {
+                  // Skip repos that fail
+                }
+                return []
+              })
+            )
+            openIssues.push(...results.flat())
+            setCachedGitHubData('open-issues', openIssues)
+          }
+
+          // Fetch recently closed issues (not cached, always fresh)
+          const closedResults = await Promise.all(
+            REPO_NAMES.map(async (repo) => {
+              try {
                 const closedUrl = `${GITHUB_URL}/repos/${GITHUB_ORG}/${repo}/issues?state=closed&per_page=20&sort=updated&direction=desc`
                 const closedRes = await fetch(closedUrl, { headers })
                 if (closedRes.ok) {
                   const issues = await closedRes.json()
-                  closedIssues.push(
-                    ...issues.filter(i => !i.pull_request).map(i => ({ ...i, repo }))
-                  )
+                  return issues.filter(i => !i.pull_request).map(i => ({ ...i, repo }))
                 }
               } catch {
                 // Skip repos that fail
               }
-              return { openIssues, closedIssues }
+              return []
             })
           )
-
-          const openIssues = results.flatMap(r => r.openIssues)
-          const closedIssues = results.flatMap(r => r.closedIssues)
+          const closedIssues = closedResults.flat()
 
           // Compute stats
           const totalOpen = openIssues.length
@@ -156,7 +195,8 @@ function issueStatsPlugin() {
           // Recently closed: closed within RECENTLY_CLOSED_HOURS
           const closedThreshold = now - (RECENTLY_CLOSED_HOURS * 60 * 60 * 1000)
           const recentlyClosed = closedIssues.filter(i => {
-            const closedAt = new Date(i.closed_at || i.updated_at).getTime()
+            if (!i.closed_at) return false
+            const closedAt = new Date(i.closed_at).getTime()
             return closedAt >= closedThreshold
           }).length
 
@@ -307,7 +347,7 @@ function dailyLogPlugin() {
         }
 
         // /api/daily-log — list all entries
-        if (url.pathname === '/' || url.pathname === '') {
+        if (url.pathname === '/') {
           return serveDailyList(res)
         }
 
