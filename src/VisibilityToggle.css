@@ -1,0 +1,23 @@
+/* ── Shared visibility toggle ─────────────── */
+/* Reusable toggle for hiding stale/done items across sections */
+
+.visibility-toggle {
+  float: right;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-size: 0.65rem;
+  font-family: var(--font-body);
+  padding: 3px 8px;
+  cursor: pointer;
+  text-transform: none;
+  font-weight: 400;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.visibility-toggle:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-secondary);
+  border-color: var(--border-accent);
+}

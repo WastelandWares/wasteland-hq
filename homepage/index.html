@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wasteland Wares</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;800&display=swap');
+
+  :root {
+    --bg: #08080c;
+    --bg-surface: #0e0e14;
+    --text: #e8e8f0;
+    --text-dim: #4a4a5e;
+    --text-secondary: #7a7a90;
+    --green: #00e88f;
+    --green-glow: #00e88f40;
+    --cyan: #22d3ee;
+    --blue: #4ea8ff;
+    --yellow: #ffc857;
+    --purple: #a78bfa;
+    --border: #1e1e2e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(30, 30, 46, 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30, 30, 46, 0.3) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+  }
+
+  .container {
+    text-align: center;
+    position: relative;
+    z-index: 1;
+    padding: 40px;
+  }
+
+  /* Logo */
+  .logo-mark {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 40px;
+    position: relative;
+  }
+
+  .logo-mark svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .brand-name {
+    font-size: 3.5rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--text) 0%, var(--cyan) 50%, var(--green) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .tagline {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    font-weight: 300;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 60px;
+  }
+
+  /* Project links */
+  .projects {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .project-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 400;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .project-link::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    border-radius: 10px 0 0 10px;
+  }
+
+  .project-link:hover {
+    background: #14141e;
+    border-color: #2a2a3e;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .project-link .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .project-link.game .dot { background: var(--green); box-shadow: 0 0 6px var(--green-glow); }
+  .project-link.game::before { background: var(--green); }
+  .project-link.infra .dot { background: var(--cyan); }
+  .project-link.infra::before { background: var(--cyan); }
+  .project-link.tools .dot { background: var(--yellow); }
+  .project-link.tools::before { background: var(--yellow); }
+  .project-link.ai .dot { background: var(--purple); }
+  .project-link.ai::before { background: var(--purple); }
+
+  .project-link .label {
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 80px;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  .footer .pulse {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s ease-in-out infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .logo-mark { animation: float 6s ease-in-out infinite; }
+
+  @media (max-width: 600px) {
+    .brand-name { font-size: 2.2rem; }
+    .projects { flex-direction: column; align-items: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="logo-mark">
+    <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Shield / hexagon shape -->
+      <path d="M60 8 L108 32 L108 80 L60 112 L12 80 L12 32 Z"
+            stroke="#22d3ee" stroke-width="2" fill="none" opacity="0.3"/>
+      <path d="M60 16 L100 36 L100 76 L60 104 L20 76 L20 36 Z"
+            stroke="#00e88f" stroke-width="1.5" fill="none" opacity="0.2"/>
+      <!-- W monogram -->
+      <text x="60" y="72" text-anchor="middle"
+            font-family="JetBrains Mono, monospace" font-size="42" font-weight="800"
+            fill="url(#grad)">W</text>
+      <!-- Glow gradient -->
+      <defs>
+        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#e8e8f0"/>
+          <stop offset="50%" stop-color="#22d3ee"/>
+          <stop offset="100%" stop-color="#00e88f"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  </div>
+
+  <h1 class="brand-name">Wasteland Wares</h1>
+  <p class="tagline">Building things in the wasteland</p>
+
+  <div class="projects">
+    <a href="https://dungeoncrawler.wastelandwares.com" class="project-link game">
+      <span class="dot"></span>
+      <span>Dungeon Crawler</span>
+      <span class="label">game</span>
+    </a>
+<a href="https://github.com/WastelandWares" class="project-link tools">
+      <span class="dot"></span>
+      <span>GitHub</span>
+      <span class="label">open source</span>
+    </a>
+    <a href="https://github.com/WastelandWares/wasteland-orchestrator" class="project-link ai">
+      <span class="dot"></span>
+      <span>Orchestrator</span>
+      <span class="label">ai agents</span>
+    </a>
+  </div>
+
+  <div class="footer">
+    <span class="pulse"></span>
+    Systems operational
+  </div>
+</div>
+
+</body>
+</html>

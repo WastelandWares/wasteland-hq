@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
 import { dbg, dbgDiff, startDomObserver, trackRender } from './debug'
+import { POLL_STATUS_INTERVAL, POLL_ISSUE_STATS_INTERVAL } from './config/repos.js'
 import './App.css'
 import TechTree from './TechTree.jsx'
+import VisibilityToggle from './VisibilityToggle.jsx'
+import { useVisibilityToggle, isAgentStale } from './useVisibilityToggle.js'
+import DailyLog from './DailyLog.jsx'
 
 const STATE_COLORS = {
   working: 'var(--green)',
@@ -33,7 +37,7 @@ const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 }
  * Stabilizes pinboard/agents/projects references via
  * JSON comparison so downstream memos work correctly.
  * ──────────────────────────────────────────────────────── */
-function useStatus(interval = 3000) {
+function useStatus(interval = POLL_STATUS_INTERVAL) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const prevJsonRef = useRef('')
@@ -67,10 +71,6 @@ function useStatus(interval = 3000) {
         dbg('data', `parsed: ${parsed.agents?.length} agents, ${parsed.projects?.length} projects, ${parsed.pinboard?.length} pinboard`)
 
         // ── Merge with best-known data ──
-        // If the new response is MISSING a field that we previously had,
-        // preserve the last-known-good value. This handles the case where
-        // an older status writer (without pinboard support) alternates
-        // with the current one.
         const best = bestKnownRef.current
         const merged = { ...parsed }
 
@@ -119,6 +119,26 @@ function useStatus(interval = 3000) {
   }, [interval])
 
   return { data, error }
+}
+
+function useIssueStats(interval = POLL_ISSUE_STATS_INTERVAL) {
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('/api/issue-stats?' + Date.now())
+        if (res.ok) setStats(await res.json())
+      } catch (e) {
+        console.warn('Failed to fetch issue stats:', e)
+      }
+    }
+    fetchStats()
+    const id = setInterval(fetchStats, interval)
+    return () => clearInterval(id)
+  }, [interval])
+
+  return stats
 }
 
 /* ── Clock — self-contained, doesn't trigger parent re-renders ── */
@@ -395,12 +415,10 @@ const PinboardSection = memo(function PinboardSection({ notes }) {
 
   useEffect(() => {
     dbg('lifecycle', 'PinboardSection MOUNT')
-    // Attach DOM observer after mount
     setTimeout(() => startDomObserver('.pin-grid'), 100)
     return () => dbg('lifecycle', 'PinboardSection UNMOUNT')
   }, [])
 
-  // Log data diffs
   useEffect(() => {
     if (prevNotesRef.current !== null) {
       dbgDiff('data', 'PinboardSection notes', prevNotesRef.current, notes)
@@ -437,30 +455,15 @@ const PinboardSection = memo(function PinboardSection({ notes }) {
     return false
   }
   if (prev.notes.length !== next.notes.length) {
-    dbg('render', `PinboardSection memo: length changed ${prev.notes.length} → ${next.notes.length} — WILL re-render`)
+    dbg('render', `PinboardSection memo: length changed ${prev.notes.length} -> ${next.notes.length} — WILL re-render`)
     return false
   }
-  if (prev.notes === next.notes) {
-    // Same reference — skip
-    return true
-  }
+  if (prev.notes === next.notes) return true
   for (let i = 0; i < prev.notes.length; i++) {
-    if (prev.notes[i].id !== next.notes[i].id) {
-      dbg('render', `PinboardSection memo: id mismatch at [${i}] — WILL re-render`)
-      return false
-    }
-    if (prev.notes[i].done !== next.notes[i].done) {
-      dbg('render', `PinboardSection memo: done changed for ${prev.notes[i].id} — WILL re-render`)
-      return false
-    }
-    if (prev.notes[i].text !== next.notes[i].text) {
-      dbg('render', `PinboardSection memo: text changed for ${prev.notes[i].id} — WILL re-render`)
-      return false
-    }
-    if (prev.notes[i].updated_at !== next.notes[i].updated_at) {
-      dbg('render', `PinboardSection memo: updated_at changed for ${prev.notes[i].id} — WILL re-render`)
-      return false
-    }
+    if (prev.notes[i].id !== next.notes[i].id) return false
+    if (prev.notes[i].done !== next.notes[i].done) return false
+    if (prev.notes[i].text !== next.notes[i].text) return false
+    if (prev.notes[i].updated_at !== next.notes[i].updated_at) return false
   }
   return true
 })
@@ -468,7 +471,6 @@ const PinboardSection = memo(function PinboardSection({ notes }) {
 /* ── ObjectivesLog ── */
 const ObjectivesLog = memo(function ObjectivesLog({ objectives, currentTask }) {
   const MAX_VISIBLE = 5
-  // Show most recent first, skip if it matches current task (already shown as active)
   const history = (objectives || [])
     .filter(o => o.text !== currentTask)
     .slice(-MAX_VISIBLE)
@@ -500,36 +502,54 @@ const ObjectivesLog = memo(function ObjectivesLog({ objectives, currentTask }) {
   )
 })
 
-function SummaryBar({ agents, projects }) {
+function SummaryBar({ agents, issueStats }) {
   const working = agents?.filter(a => a.state === 'working' && a.alive).length || 0
   const idle = agents?.filter(a => a.state === 'idle').length || 0
-  const stale = agents?.filter(a => a.stale && !a.alive).length || 0
-  const totalIssues = projects?.reduce((s, p) => s + p.open, 0) || 0
-  const totalSprint = projects?.reduce((s, p) => s + p.sprint, 0) || 0
+  const stale = agents?.filter(isAgentStale).length || 0
 
   return (
     <div className="summary-bar">
-      <div className="summary-stat">
-        <div className="dot green" />
-        <span className="value">{working}</span> working
-      </div>
-      <div className="summary-stat">
-        <div className="dot dim" />
-        <span className="value">{idle}</span> idle
-      </div>
-      {stale > 0 && (
+      {/* Agent stats */}
+      <div className="summary-group">
         <div className="summary-stat">
-          <div className="dot red" />
-          <span className="value">{stale}</span> stale
+          <div className="dot green" />
+          <span className="value">{working}</span> working
         </div>
-      )}
-      <div className="summary-stat">
-        <div className="dot blue" />
-        <span className="value">{totalIssues}</span> issues
+        <div className="summary-stat">
+          <div className="dot dim" />
+          <span className="value">{idle}</span> idle
+        </div>
+        {stale > 0 && (
+          <div className="summary-stat">
+            <div className="dot red" />
+            <span className="value">{stale}</span> stale
+          </div>
+        )}
       </div>
-      <div className="summary-stat">
-        <div className="dot green" />
-        <span className="value">{totalSprint}</span> in sprint
+
+      {/* Separator */}
+      <div className="summary-divider" />
+
+      {/* Issue stats */}
+      <div className="summary-group">
+        <div className="summary-stat">
+          <div className="dot blue" />
+          <span className="value">{issueStats?.open ?? '\u2013'}</span> open
+        </div>
+        <div className="summary-stat">
+          <div className="dot cyan" />
+          <span className="value">{issueStats?.inProgress ?? '\u2013'}</span> in progress
+        </div>
+        {(issueStats?.stalled ?? 0) > 0 && (
+          <div className="summary-stat">
+            <div className="dot yellow" />
+            <span className="value">{issueStats.stalled}</span> stalled
+          </div>
+        )}
+        <div className="summary-stat">
+          <div className="dot green" />
+          <span className="value">{issueStats?.recentlyClosed ?? '\u2013'}</span> closed <span className="stat-detail">48h</span>
+        </div>
       </div>
     </div>
   )
@@ -542,26 +562,31 @@ function TabBar({ activeTab, onTabChange }) {
         className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
         onClick={() => onTabChange('dashboard')}
       >
-        <span className="tab-icon">◉</span>
+        <span className="tab-icon">{'\u25C9'}</span>
         Dashboard
       </button>
       <button
         className={`tab-btn ${activeTab === 'techtree' ? 'active' : ''}`}
         onClick={() => onTabChange('techtree')}
       >
-        <span className="tab-icon">⬡</span>
+        <span className="tab-icon">{'\u2B21'}</span>
         Tech Tree
+      </button>
+      <button
+        className={`tab-btn ${activeTab === 'dailylog' ? 'active' : ''}`}
+        onClick={() => onTabChange('dailylog')}
+      >
+        <span className="tab-icon">{'\u2630'}</span>
+        Daily Log
       </button>
     </div>
   )
 }
 
 export default function App() {
-  const { data, error } = useStatus(3000)
+  const { data, error } = useStatus(POLL_STATUS_INTERVAL)
+  const issueStats = useIssueStats(POLL_ISSUE_STATS_INTERVAL)
   const [activeTab, setActiveTab] = useState('dashboard')
-  const [showAllAgents, setShowAllAgents] = useState(() => {
-    try { return localStorage.getItem('hq-show-all-agents') === 'true' } catch { return false }
-  })
   const renderCount = trackRender('App')
   const prevDataRef = useRef(null)
 
@@ -584,38 +609,26 @@ export default function App() {
 
   const agents = data?.agents || []
   const projects = data?.projects || []
-  const lead = getLeadAgent(agents)
-
-  // Agent visibility: active/recent = alive OR heartbeat < 30min OR state is working/reviewing
-  const RECENT_THRESHOLD = 30 * 60 // 30 minutes in seconds
-  const activeAgents = agents.filter(a =>
-    a.alive || !a.stale || a.state === 'working' || a.state === 'reviewing' ||
-    a.state === 'brainstorming' || (a.age_sec != null && a.age_sec < RECENT_THRESHOLD)
-  )
-  const staleAgents = agents.filter(a =>
-    !a.alive && a.stale && a.state !== 'working' && a.state !== 'reviewing' &&
-    a.state !== 'brainstorming' && (a.age_sec == null || a.age_sec >= RECENT_THRESHOLD)
-  )
-  const visibleAgents = showAllAgents ? agents : activeAgents
-  const toggleShowAll = useCallback(() => {
-    setShowAllAgents(prev => {
-      const next = !prev
-      try { localStorage.setItem('hq-show-all-agents', String(next)) } catch {}
-      return next
-    })
-  }, [])
-  const maxIssues = Math.max(...projects.map(p => p.open), 1)
   const pinboard = data?.pinboard || []
   const objectives = data?.objectives || []
+  const lead = getLeadAgent(agents)
+  const maxIssues = Math.max(...projects.map(p => p.open), 1)
+
+  // Shared visibility toggles using the DRY hook
+  const agentVis = useVisibilityToggle('hq-show-all-agents', {
+    items: agents,
+    isHidden: isAgentStale,
+  })
 
   const cookMode = data?.cook_mode || { active: false }
-  const stateLabel = cookMode.active ? '🔥 COOKING' : (lead.state || 'idle').toUpperCase()
+  const stateLabel = cookMode.active ? 'COOKING' : (lead.state || 'idle').toUpperCase()
   const beaconState = cookMode.active ? 'cooking' : (lead.state || 'idle')
 
   dbg('render', `App render #${renderCount}: data=${!!data}, agents=${agents.length}, pinboard=${pinboard.length}, cooking=${cookMode.active}`)
 
   return (
     <div className={`hq ${cookMode.active ? 'cook-mode-active' : ''}`}>
+      {/* ── Big Status Header ── */}
       <div className="hq-header">
         <StatusBeacon state={beaconState} />
         <div className="hq-title">
@@ -625,7 +638,7 @@ export default function App() {
           </div>
           {cookMode.active && (
             <div className="cook-badge">
-              <span className="cook-badge-icon">👨‍🍳</span>
+              <span className="cook-badge-icon">&#x1F468;&#x200D;&#x1F373;</span>
               <span className="cook-badge-task">{cookMode.task || 'Autonomous mode'}</span>
               {cookMode.messages_queued > 0 && (
                 <span className="cook-badge-queue">{cookMode.messages_queued} queued</span>
@@ -654,38 +667,48 @@ export default function App() {
       {/* ── Dashboard View ── */}
       {activeTab === 'dashboard' && (
         <>
+          {/* ── Agents ── */}
           <div className="agents-section">
             <div className="section-label">
               Agents
-              {activeAgents.length < agents.length && (
-                <button className="agents-toggle" onClick={toggleShowAll}>
-                  {showAllAgents
-                    ? `Hide stale (${staleAgents.length})`
-                    : `Show all (${agents.length})`
-                  }
-                </button>
-              )}
+              <VisibilityToggle
+                showAll={agentVis.showAll}
+                hiddenCount={agentVis.hiddenCount}
+                onToggle={agentVis.toggle}
+                hideLabel={`Hide stale (${agentVis.hiddenCount})`}
+                showLabel={`Show all (${agents.length})`}
+              />
             </div>
             <div className="agent-grid">
-              {visibleAgents.map(a => <AgentCard key={a.agent} agent={a} />)}
+              {agentVis.visible.map(a => (
+                <AgentCard key={a.agent} agent={a} />
+              ))}
             </div>
           </div>
 
+          {/* ── Pinboard ── */}
           <PinboardSection notes={pinboard} />
 
+          {/* ── Projects ── */}
           <div className="projects-section">
             <div className="section-label">Projects</div>
             <div className="project-rows">
-              {projects.map(p => <ProjectRow key={p.name} project={p} maxIssues={maxIssues} />)}
+              {projects.map(p => (
+                <ProjectRow key={p.name} project={p} maxIssues={maxIssues} />
+              ))}
             </div>
           </div>
 
-          <SummaryBar agents={agents} projects={projects} />
+          {/* ── Summary ── */}
+          <SummaryBar agents={agents} issueStats={issueStats} />
         </>
       )}
 
       {/* ── Tech Tree View ── */}
       {activeTab === 'techtree' && <TechTree />}
+
+      {/* ── Daily Log View ── */}
+      {activeTab === 'dailylog' && <DailyLog />}
 
       {error && (
         <div style={{ color: 'var(--red)', fontSize: '0.75rem', marginTop: 12 }}>

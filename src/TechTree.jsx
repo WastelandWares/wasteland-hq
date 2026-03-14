@@ -1,22 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import dagre from '@dagrejs/dagre'
+import { REPO_COLORS, REPO_COLORS_DIM } from './config/repos.js'
 import './TechTree.css'
 
-// ── Project colors ──────────────────────────
-const PROJECT_COLORS = {
-  'dungeon-crawler': '#00e88f',
-  'wasteland-infra': '#4ea8ff',
-  'claude-gate': '#a78bfa',
-  'wasteland-hq': '#22d3ee',
-  'dnd-tools': '#ffc857',
-  'meeting-scribe': '#fb923c',
-  'wasteland-orchestrator': '#ff5c5c',
-  'neuroscript-rs': '#e879f9',
-}
-
-const PROJECT_COLOR_DIM = Object.fromEntries(
-  Object.entries(PROJECT_COLORS).map(([k, v]) => [k, v + '30'])
-)
+// ── Project colors (from centralized config) ─
+const PROJECT_COLORS = REPO_COLORS
+const PROJECT_COLOR_DIM = REPO_COLORS_DIM
 
 // ── Complexity shapes ───────────────────────
 // trivial = small circle, small = circle, medium = rounded rect, large = rect, epic = diamond
@@ -81,7 +70,7 @@ function getComplexity(issue) {
   return 'medium' // default
 }
 
-// Find connected components in a set of nodes + edges
+// Find connected components using union-find
 function findComponents(nodeKeys, edgeList) {
   const parent = new Map()
   for (const key of nodeKeys) parent.set(key, key)
@@ -169,10 +158,10 @@ function buildGraph(issues) {
   // Layout each component separately with dagre, then arrange in a grid
   const allNodes = []
   const allPositionedEdges = []
-  const COMPONENT_GAP_X = 60
-  const COMPONENT_GAP_Y = 60
+  const COMPONENT_GAP_X = 80
+  const COMPONENT_GAP_Y = 80
 
-  // Determine grid columns: ~3 columns for many components, fewer for few
+  // Grid columns based on component count
   const numCols = components.length <= 2 ? components.length
     : components.length <= 6 ? 3
     : 4
@@ -180,7 +169,6 @@ function buildGraph(issues) {
   let gridX = 0
   let gridY = 0
   let colIndex = 0
-  const rowHeights = []
   let currentRowHeight = 0
 
   for (const component of components) {
@@ -189,7 +177,7 @@ function buildGraph(issues) {
     g.setGraph({
       rankdir: 'TB',
       ranksep: 100,
-      nodesep: 40,
+      nodesep: 60,
       marginx: 20,
       marginy: 20,
     })
@@ -264,7 +252,6 @@ function buildGraph(issues) {
       gridX = 0
       gridY += currentRowHeight + COMPONENT_GAP_Y
       colIndex = 0
-      rowHeights.push(currentRowHeight)
       currentRowHeight = 0
     } else {
       gridX += compWidth + COMPONENT_GAP_X
@@ -509,7 +496,7 @@ function DetailPanel({ node, onClose }) {
         rel="noopener noreferrer"
         className="detail-link"
       >
-        Open in Gitea →
+        Open in GitHub →
       </a>
     </div>
   )
@@ -621,7 +608,7 @@ export default function TechTree() {
       <div className="tech-tree-container">
         <div className="tech-loading">
           <div className="loading-spinner" />
-          <span>Scanning Gitea for issues…</span>
+          <span>Scanning GitHub for issues…</span>
         </div>
       </div>
     )
@@ -632,9 +619,9 @@ export default function TechTree() {
       <div className="tech-tree-container">
         <div className="tech-error">
           <span className="error-icon">⚠</span>
-          <span>Connection to Gitea failed: {error}</span>
+          <span>Connection to GitHub failed: {error}</span>
           <div className="error-hint">
-            Ensure Gitea is running at localhost:3003
+            Check your GitHub token and network connection
           </div>
         </div>
       </div>
