@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Visibility toggle control for UI elements
 
 ### Changed
-- Migrated from Gitea API to GitHub API (#24)
+- Migrated to GitHub API (#24)
   - Updated data fetching and synchronization
   - Improved GitHub integration
 - Repository configuration refactoring
