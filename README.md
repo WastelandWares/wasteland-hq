@@ -1,16 +1,65 @@
-# React + Vite
+# Wasteland HQ
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React + Vite application for managing tech trees and daily summary logs with GitHub integration.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Tech Tree Visualization**: Interactive graph-based visualization of technology dependencies and progression
+  - Built with [Dagre](https://dagrejs.org/) for layout calculations
+  - Dynamic node rendering and relationship management
+  - Story bar expansion and visibility controls
 
-## React Compiler
+- **Daily Log Dashboard**: Browsable daily summary log interface
+  - Track and view daily progress summaries
+  - Integrated dashboard tab
+  - Persistent data storage
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **GitHub Integration**: Seamless synchronization with GitHub repositories
+  - Automatic data fetching and updates
+  - Issue and pull request tracking
 
-## Expanding the ESLint configuration
+## Project Structure
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```
+src/
+├── App.jsx                 # Main application component
+├── App.css                 # Application styles
+├── TechTree.jsx           # Tech tree visualization component
+├── TechTree.css           # Tech tree styles
+├── DailyLog.jsx           # Daily log dashboard component
+├── DailyLog.css           # Daily log styles
+├── VisibilityToggle.jsx   # Visibility control component
+├── useVisibilityToggle.js # Visibility toggle hook
+├── config/                # Configuration files
+└── assets/                # Static assets
+```
+
+## Development
+
+### Setup
+```bash
+npm install
+npm run dev
+```
+
+### Build
+```bash
+npm run build
+npm run preview
+```
+
+### Lint
+```bash
+npm lint
+```
+
+## Technology Stack
+
+- **React 19** - UI framework
+- **Vite 7** - Build tool with HMR
+- **Dagre** - Graph layout and visualization
+- **ESLint** - Code quality
+
+## Contributing
+
+See the [CLAUDE.md](./CLAUDE.md) file for development guidelines and conventions.
